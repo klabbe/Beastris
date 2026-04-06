@@ -85,6 +85,12 @@ class GameEngine extends ChangeNotifier {
     notifyListeners();
   }
 
+  void returnToMenu() {
+    _timer?.cancel();
+    _state = GameState.idle;
+    notifyListeners();
+  }
+
   void togglePause() {
     if (_state == GameState.playing) {
       _state = GameState.paused;
@@ -219,7 +225,10 @@ class GameEngine extends ChangeNotifier {
     }
 
     _spawnPiece();
-    notifyListeners();
+    // _spawnPiece already called notifyListeners() when game over; skip duplicate
+    if (_state != GameState.gameOver) {
+      notifyListeners();
+    }
   }
 
   int _clearLines() {
