@@ -1,17 +1,28 @@
-# beastris
+# 🐾 Beastris
 
-A new Flutter project.
+A Tetris-style puzzle game built with Flutter, where classic block shapes are replaced by animal-themed pieces.
 
-## Getting Started
+## The Beasts
 
-This project is a starting point for a Flutter application.
+| 🐍 Snake | 🐊 Croc | 🐛 Caterpillar | 🐢 Turtle | 🦅 Eagle | 🐕 Dog | 🐈 Cat |
+|----------|---------|----------------|----------|---------|--------|--------|
+| S-piece  | Z-piece | I-piece        | O-piece  | T-piece | L-piece| J-piece|
 
-A few resources to get you started if this is your first Flutter project:
+## Quick Start
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+```bash
+flutter run -d chrome       # Web
+flutter run -d macos        # macOS (requires Xcode)
+flutter run -d <device-id>  # Android (USB debugging)
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Documentation
+
+See the [docs/](docs/) folder for full documentation:
+
+- [Overview](docs/overview.md) — Game concept and features
+- [Architecture](docs/architecture.md) — Project structure
+- [Game Engine](docs/game-engine.md) — Core logic and mechanics
+- [Pieces](docs/pieces.md) — The 7 animal pieces
+- [Widgets](docs/widgets.md) — UI components
+- [Building & Running](docs/building.md) — Setup and build instructions
