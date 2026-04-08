@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "771555519489",
+    "project_id": "beastris-game-90b1b",
+    "storage_bucket": "beastris-game-90b1b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:771555519489:android:d836c876ec0e42c6dae400",
+        "android_client_info": {
+          "package_name": "com.beastris.beastris"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCjCUPDZc3Cme9gAuj8hyN97nGLKIC8yqQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
