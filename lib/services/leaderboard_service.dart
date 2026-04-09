@@ -9,8 +9,8 @@ class LeaderboardService {
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  /// Submit a score. Only saves if it's in the top [maxEntries].
-  Future<void> submitScore(GameResult result, String playerName) async {
+  Future<void> submitScore(GameResult result, String playerName,
+      {String? uid, String? country}) async {
     try {
       await _db.collection(_collection).add({
         'name': playerName,
@@ -18,6 +18,9 @@ class LeaderboardService {
         'lines': result.lines,
         'level': result.level,
         'date': result.date.toIso8601String(),
+        'timestamp': result.date.millisecondsSinceEpoch,
+        if (uid != null) 'uid': uid,
+        if (country != null && country.isNotEmpty) 'country': country,
       });
       debugPrint('Leaderboard: score submitted for $playerName (${result.score})');
     } catch (e) {
@@ -31,11 +34,12 @@ class LeaderboardService {
       final snapshot = await _db
           .collection(_collection)
           .orderBy('score', descending: true)
-          .limit(maxEntries)
+          .limit(100)
           .get();
       debugPrint('Leaderboard: fetched ${snapshot.docs.length} entries');
       return snapshot.docs
           .map((doc) => LeaderboardEntry.fromMap(doc.data()))
+          .take(maxEntries)
           .toList();
     } catch (e) {
       debugPrint('Leaderboard read ERROR: $e');
@@ -43,15 +47,27 @@ class LeaderboardService {
     }
   }
 
-  /// Stream of top scores for real-time updates.
-  Stream<List<LeaderboardEntry>> topScoresStream() {
-    return _db
-        .collection(_collection)
-        .orderBy('score', descending: true)
-        .limit(maxEntries)
-        .snapshots()
-        .map((snap) =>
-            snap.docs.map((d) => LeaderboardEntry.fromMap(d.data())).toList());
+  Future<List<LeaderboardEntry>> fetchWeeklyScores() async {
+    try {
+      final weekAgo = DateTime.now()
+          .subtract(const Duration(days: 7))
+          .millisecondsSinceEpoch;
+      final snapshot = await _db
+          .collection(_collection)
+          .orderBy('score', descending: true)
+          .limit(100)
+          .get();
+      final entries = snapshot.docs
+          .map((doc) => LeaderboardEntry.fromMap(doc.data()))
+          .where((e) => e.timestamp >= weekAgo)
+          .take(maxEntries)
+          .toList();
+      debugPrint('Leaderboard weekly: ${entries.length} entries');
+      return entries;
+    } catch (e) {
+      debugPrint('Leaderboard weekly ERROR: $e');
+      rethrow;
+    }
   }
 }
 
@@ -61,6 +77,8 @@ class LeaderboardEntry {
   final int lines;
   final int level;
   final String date;
+  final int timestamp;
+  final String country;
 
   LeaderboardEntry({
     required this.name,
@@ -68,6 +86,8 @@ class LeaderboardEntry {
     required this.lines,
     required this.level,
     required this.date,
+    this.timestamp = 0,
+    this.country = '',
   });
 
   factory LeaderboardEntry.fromMap(Map<String, dynamic> map) => LeaderboardEntry(
@@ -76,5 +96,7 @@ class LeaderboardEntry {
         lines: map['lines'] as int? ?? 0,
         level: map['level'] as int? ?? 1,
         date: map['date'] as String? ?? '',
+        timestamp: map['timestamp'] as int? ?? 0,
+        country: map['country'] as String? ?? '',
       );
 }
