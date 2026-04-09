@@ -645,6 +645,27 @@ class _AuthDialogState extends State<_AuthDialog> {
     super.dispose();
   }
 
+  Future<void> _forgotPassword() async {
+    final email = _emailCtrl.text.trim();
+    if (email.isEmpty) {
+      setState(() => _error = 'Enter your email address first.');
+      return;
+    }
+    setState(() { _loading = true; _error = null; });
+    final err = await widget.auth.sendPasswordReset(email);
+    if (!mounted) return;
+    setState(() { _loading = false; });
+    if (err != null) {
+      setState(() => _error = err);
+    } else {
+      setState(() => _error = null);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password reset email sent. Check your inbox.')),
+      );
+      Navigator.of(context).pop();
+    }
+  }
+
   Future<void> _submit() async {
     final email = _emailCtrl.text.trim();
     final password = _passwordCtrl.text;
@@ -712,6 +733,11 @@ class _AuthDialogState extends State<_AuthDialog> {
           onPressed: _loading ? null : () => setState(() { _isRegister = !_isRegister; _error = null; }),
           child: Text(_isRegister ? 'Already have an account?' : 'Create account'),
         ),
+        if (!_isRegister)
+          TextButton(
+            onPressed: _loading ? null : _forgotPassword,
+            child: const Text('Forgot password?', style: TextStyle(color: Colors.white38, fontSize: 12)),
+          ),
         TextButton(onPressed: _loading ? null : () => Navigator.of(context).pop(), child: const Text('Cancel')),
         ElevatedButton(
           onPressed: _loading ? null : _submit,
