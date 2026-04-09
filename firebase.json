@@ -1,1 +1,25 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"beastris-game-90b1b","appId":"1:771555519489:android:d836c876ec0e42c6dae400","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"beastris-game-90b1b","configurations":{"android":"1:771555519489:android:d836c876ec0e42c6dae400","web":"1:771555519489:web:aa746f836a7d3506dae400"}}}}}}
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "beastris-game-90b1b",
+          "appId": "1:771555519489:android:d836c876ec0e42c6dae400",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "beastris-game-90b1b",
+          "configurations": {
+            "android": "1:771555519489:android:d836c876ec0e42c6dae400",
+            "web": "1:771555519489:web:aa746f836a7d3506dae400"
+          }
+        }
+      }
+    }
+  }
+}
