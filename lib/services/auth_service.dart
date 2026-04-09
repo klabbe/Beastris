@@ -51,22 +51,30 @@ class AuthService extends ChangeNotifier {
       );
       // Set profile immediately so _onAuthChanged skips the redundant fetch
       _profile = fullProfile;
-      // Save to Firestore in background — don't block registration on it
-      _saveProfile(fullProfile).catchError((e) => debugPrint('Save profile failed: $e'));
+      // Save to Firestore in background
+      _saveProfile(fullProfile)
+          .catchError((e) => debugPrint('Save profile failed: $e'));
       notifyListeners();
       return null;
     } on FirebaseAuthException catch (e) {
       return _authError(e.code);
+    } catch (e) {
+      return 'Registration failed. Please try again.';
     }
   }
 
   Future<String?> signIn(String email, String password) async {
     try {
-      await _auth.signInWithEmailAndPassword(email: email, password: password);
-      // _onAuthChanged fires and fetches the profile — no duplicate work needed here
+      final cred = await _auth.signInWithEmailAndPassword(
+          email: email, password: password);
+      // Fetch profile before returning so the caller has it immediately
+      _profile = await _fetchProfile(cred.user!.uid);
+      notifyListeners();
       return null;
     } on FirebaseAuthException catch (e) {
       return _authError(e.code);
+    } catch (e) {
+      return 'Sign in failed. Please try again.';
     }
   }
 
