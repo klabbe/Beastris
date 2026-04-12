@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../game/engine.dart';
+import '../models/countries.dart';
 import '../models/game_history.dart';
 import '../models/user_profile.dart';
 import '../services/auth_service.dart';
@@ -454,7 +455,7 @@ class _GameScreenState extends State<GameScreen> {
                       ),
                     ),
                     if (r.country.isNotEmpty)
-                      Padding(padding: const EdgeInsets.only(right: 4), child: Text(r.country, style: const TextStyle(fontSize: 12))),
+                      Padding(padding: const EdgeInsets.only(right: 4), child: Text(countryCodeToFlag(r.country), style: const TextStyle(fontSize: 12))),
                     Text('${r.score} pts', style: TextStyle(color: isMe ? const Color(0xFFFFD700) : Colors.white70, fontSize: 13)),
                   ],
                 ),
@@ -735,12 +736,12 @@ class _AuthDialogState extends State<_AuthDialog> {
   bool _isRegister = false;
   bool _loading = false;
   String? _error;
+  String? _selectedCountryCode;
 
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _aliasCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
-  final _countryCtrl = TextEditingController();
 
   @override
   void dispose() {
@@ -748,7 +749,6 @@ class _AuthDialogState extends State<_AuthDialog> {
     _passwordCtrl.dispose();
     _aliasCtrl.dispose();
     _nameCtrl.dispose();
-    _countryCtrl.dispose();
     super.dispose();
   }
 
@@ -791,7 +791,7 @@ class _AuthDialogState extends State<_AuthDialog> {
         uid: '',
         alias: _aliasCtrl.text.trim(),
         name: _nameCtrl.text.trim(),
-        country: _countryCtrl.text.trim(),
+        country: _selectedCountryCode ?? '',
       );
       err = await widget.auth.register(email, password, profile);
     } else {
@@ -822,11 +822,23 @@ class _AuthDialogState extends State<_AuthDialog> {
             _field(_passwordCtrl, 'Password', obscure: true),
             if (_isRegister) ...[
               const SizedBox(height: 10),
-              _field(_aliasCtrl, 'Alias (shown on leaderboard)', maxLength: 16),
+              _labelledField(
+                label: 'Alias',
+                hint: 'Shown on the leaderboard',
+                ctrl: _aliasCtrl,
+                maxLength: 16,
+              ),
               const SizedBox(height: 10),
-              _field(_nameCtrl, 'Name (optional)'),
+              _labelledField(
+                label: 'Name (optional)',
+                hint: 'Your real name — not shown publicly',
+                ctrl: _nameCtrl,
+              ),
               const SizedBox(height: 10),
-              _field(_countryCtrl, 'Country (optional, e.g. 🇸🇪)'),
+              _countryDropdown(
+                value: _selectedCountryCode,
+                onChanged: (v) => setState(() => _selectedCountryCode = v),
+              ),
             ],
             if (_error != null) ...[
               const SizedBox(height: 10),
@@ -884,6 +896,65 @@ class _AuthDialogState extends State<_AuthDialog> {
       ),
     );
   }
+
+  Widget _labelledField({
+    required String label,
+    required String hint,
+    required TextEditingController ctrl,
+    bool obscure = false,
+    TextInputType? keyboardType,
+    int? maxLength,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(color: Colors.white60, fontSize: 12)),
+        const SizedBox(height: 4),
+        _field(ctrl, hint, obscure: obscure, keyboardType: keyboardType, maxLength: maxLength),
+      ],
+    );
+  }
+
+  Widget _countryDropdown({String? value, required ValueChanged<String?> onChanged}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Country (optional)', style: TextStyle(color: Colors.white60, fontSize: 12)),
+        const SizedBox(height: 4),
+        DropdownButtonFormField<String>(
+          value: value,
+          dropdownColor: const Color(0xFF1A1A2E),
+          style: const TextStyle(color: Colors.white),
+          iconEnabledColor: Colors.white54,
+          decoration: InputDecoration(
+            hintText: 'Select country...',
+            hintStyle: const TextStyle(color: Colors.white30),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: Colors.white24),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: Color(0xFF533483)),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          ),
+          items: [
+            const DropdownMenuItem<String>(
+              value: null,
+              child: Text('— None —', style: TextStyle(color: Colors.white38)),
+            ),
+            ...kCountries.map((c) => DropdownMenuItem<String>(
+              value: c.code,
+              child: Text('${countryCodeToFlag(c.code)}  ${c.name}',
+                  style: const TextStyle(color: Colors.white)),
+            )),
+          ],
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -901,9 +972,9 @@ class _ProfileDialog extends StatefulWidget {
 class _ProfileDialogState extends State<_ProfileDialog> {
   bool _loading = false;
   String? _error;
+  String? _selectedCountryCode;
   late final TextEditingController _aliasCtrl;
   late final TextEditingController _nameCtrl;
-  late final TextEditingController _countryCtrl;
 
   @override
   void initState() {
@@ -911,14 +982,15 @@ class _ProfileDialogState extends State<_ProfileDialog> {
     final p = widget.auth.profile;
     _aliasCtrl = TextEditingController(text: p?.alias ?? '');
     _nameCtrl = TextEditingController(text: p?.name ?? '');
-    _countryCtrl = TextEditingController(text: p?.country ?? '');
+    // Pre-select country if it matches a known code
+    final savedCode = p?.country ?? '';
+    _selectedCountryCode = kCountries.any((c) => c.code == savedCode) ? savedCode : null;
   }
 
   @override
   void dispose() {
     _aliasCtrl.dispose();
     _nameCtrl.dispose();
-    _countryCtrl.dispose();
     super.dispose();
   }
 
@@ -933,7 +1005,7 @@ class _ProfileDialogState extends State<_ProfileDialog> {
       uid: uid,
       alias: _aliasCtrl.text.trim(),
       name: _nameCtrl.text.trim(),
-      country: _countryCtrl.text.trim(),
+      country: _selectedCountryCode ?? '',
     ));
     if (!mounted) return;
     if (err != null) {
@@ -956,12 +1028,25 @@ class _ProfileDialogState extends State<_ProfileDialog> {
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _field(_aliasCtrl, 'Alias', maxLength: 16),
+            _labelledField(
+              label: 'Alias',
+              hint: 'Shown on the leaderboard',
+              ctrl: _aliasCtrl,
+              maxLength: 16,
+            ),
             const SizedBox(height: 10),
-            _field(_nameCtrl, 'Name (optional)'),
+            _labelledField(
+              label: 'Name (optional)',
+              hint: 'Your real name — not shown publicly',
+              ctrl: _nameCtrl,
+            ),
             const SizedBox(height: 10),
-            _field(_countryCtrl, 'Country (optional, e.g. 🇸🇪)'),
+            _countryDropdown(
+              value: _selectedCountryCode,
+              onChanged: (v) => setState(() => _selectedCountryCode = v),
+            ),
             if (_error != null) ...[
               const SizedBox(height: 10),
               Text(_error!, style: const TextStyle(color: Colors.redAccent, fontSize: 13)),
@@ -1005,6 +1090,58 @@ class _ProfileDialogState extends State<_ProfileDialog> {
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       ),
+    );
+  }
+
+  Widget _labelledField({required String label, required String hint, required TextEditingController ctrl, int? maxLength}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(color: Colors.white60, fontSize: 12)),
+        const SizedBox(height: 4),
+        _field(ctrl, hint, maxLength: maxLength),
+      ],
+    );
+  }
+
+  Widget _countryDropdown({String? value, required ValueChanged<String?> onChanged}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Country (optional)', style: TextStyle(color: Colors.white60, fontSize: 12)),
+        const SizedBox(height: 4),
+        DropdownButtonFormField<String>(
+          value: value,
+          dropdownColor: const Color(0xFF1A1A2E),
+          style: const TextStyle(color: Colors.white),
+          iconEnabledColor: Colors.white54,
+          decoration: InputDecoration(
+            hintText: 'Select country...',
+            hintStyle: const TextStyle(color: Colors.white30),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: Colors.white24),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: Color(0xFF533483)),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          ),
+          items: [
+            const DropdownMenuItem<String>(
+              value: null,
+              child: Text('— None —', style: TextStyle(color: Colors.white38)),
+            ),
+            ...kCountries.map((c) => DropdownMenuItem<String>(
+              value: c.code,
+              child: Text('${countryCodeToFlag(c.code)}  ${c.name}',
+                  style: const TextStyle(color: Colors.white)),
+            )),
+          ],
+          onChanged: onChanged,
+        ),
+      ],
     );
   }
 }
