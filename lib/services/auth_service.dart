@@ -44,9 +44,26 @@ class AuthService extends ChangeNotifier {
     return null;
   }
 
+  Future<bool> _isAliasAvailable(String alias, {String? excludeUid}) async {
+    try {
+      final snapshot = await _db
+          .collection('users')
+          .where('alias', isEqualTo: alias)
+          .limit(1)
+          .get();
+      if (snapshot.docs.isEmpty) return true;
+      // Available if the only match is the current user
+      return snapshot.docs.first.id == excludeUid;
+    } catch (_) {
+      return true; // Fail open on network errors
+    }
+  }
+
   Future<String?> register(
       String email, String password, UserProfile profile) async {
     try {
+      final available = await _isAliasAvailable(profile.alias);
+      if (!available) return 'That alias is already taken. Please choose another.';
       final cred = await _auth.createUserWithEmailAndPassword(
           email: email, password: password);
       final fullProfile = UserProfile(
@@ -103,6 +120,11 @@ class AuthService extends ChangeNotifier {
 
   Future<String?> updateProfile(UserProfile profile) async {
     try {
+      if (profile.alias != _profile?.alias) {
+        final available =
+            await _isAliasAvailable(profile.alias, excludeUid: profile.uid);
+        if (!available) return 'That alias is already taken. Please choose another.';
+      }
       await _saveProfile(profile);
       _profile = profile;
       notifyListeners();

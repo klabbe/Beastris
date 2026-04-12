@@ -29,25 +29,33 @@ class LeaderboardService {
     }
   }
 
-  Future<List<LeaderboardEntry>> fetchTopScores() async {
+  Future<({List<LeaderboardEntry> top10, (int, LeaderboardEntry)? userRank})>
+      fetchAllTimeData({String? uid}) async {
     try {
       final snapshot = await _db
           .collection(_collection)
           .orderBy('score', descending: true)
-          .limit(100)
+          .limit(200)
           .get();
-      debugPrint('Leaderboard: fetched ${snapshot.docs.length} entries');
-      return snapshot.docs
-          .map((doc) => LeaderboardEntry.fromMap(doc.data()))
-          .take(maxEntries)
+      final all = snapshot.docs
+          .map((d) => LeaderboardEntry.fromMap(d.data()))
           .toList();
+      final top10 = all.take(maxEntries).toList();
+      (int, LeaderboardEntry)? userRank;
+      if (uid != null) {
+        final idx = all.indexWhere((e) => e.uid == uid);
+        if (idx >= 0) userRank = (idx + 1, all[idx]);
+      }
+      debugPrint('Leaderboard: fetched ${all.length} entries');
+      return (top10: top10, userRank: userRank);
     } catch (e) {
       debugPrint('Leaderboard read ERROR: $e');
       rethrow;
     }
   }
 
-  Future<List<LeaderboardEntry>> fetchWeeklyScores() async {
+  Future<({List<LeaderboardEntry> top10, (int, LeaderboardEntry)? userRank})>
+      fetchWeeklyData({String? uid}) async {
     try {
       final weekAgo = DateTime.now()
           .subtract(const Duration(days: 7))
@@ -55,23 +63,53 @@ class LeaderboardService {
       final snapshot = await _db
           .collection(_collection)
           .orderBy('score', descending: true)
-          .limit(100)
+          .limit(200)
           .get();
-      final entries = snapshot.docs
-          .map((doc) => LeaderboardEntry.fromMap(doc.data()))
+      final weekly = snapshot.docs
+          .map((d) => LeaderboardEntry.fromMap(d.data()))
           .where((e) => e.timestamp >= weekAgo)
-          .take(maxEntries)
           .toList();
-      debugPrint('Leaderboard weekly: ${entries.length} entries');
-      return entries;
+      final top10 = weekly.take(maxEntries).toList();
+      (int, LeaderboardEntry)? userRank;
+      if (uid != null) {
+        final idx = weekly.indexWhere((e) => e.uid == uid);
+        if (idx >= 0) userRank = (idx + 1, weekly[idx]);
+      }
+      debugPrint('Leaderboard weekly: ${top10.length} entries');
+      return (top10: top10, userRank: userRank);
     } catch (e) {
       debugPrint('Leaderboard weekly ERROR: $e');
       rethrow;
     }
   }
+
+  /// Best score the user has this week, or null if none.
+  Future<int?> fetchUserBestScoreThisWeek(String uid) async {
+    try {
+      final weekAgo = DateTime.now()
+          .subtract(const Duration(days: 7))
+          .millisecondsSinceEpoch;
+      final snapshot = await _db
+          .collection(_collection)
+          .where('uid', isEqualTo: uid)
+          .get();
+      final scores = snapshot.docs
+          .map((d) => LeaderboardEntry.fromMap(d.data()))
+          .where((e) => e.timestamp >= weekAgo)
+          .map((e) => e.score)
+          .toList();
+      if (scores.isEmpty) return null;
+      scores.sort((a, b) => b.compareTo(a));
+      return scores.first;
+    } catch (e) {
+      debugPrint('Leaderboard: fetchUserBestScoreThisWeek error: $e');
+      return null;
+    }
+  }
 }
 
 class LeaderboardEntry {
+  final String uid;
   final String name;
   final int score;
   final int lines;
@@ -81,6 +119,7 @@ class LeaderboardEntry {
   final String country;
 
   LeaderboardEntry({
+    this.uid = '',
     required this.name,
     required this.score,
     required this.lines,
@@ -91,6 +130,7 @@ class LeaderboardEntry {
   });
 
   factory LeaderboardEntry.fromMap(Map<String, dynamic> map) => LeaderboardEntry(
+        uid: map['uid'] as String? ?? '',
         name: map['name'] as String? ?? 'Unknown',
         score: map['score'] as int? ?? 0,
         lines: map['lines'] as int? ?? 0,

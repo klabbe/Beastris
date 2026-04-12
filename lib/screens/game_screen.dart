@@ -27,6 +27,8 @@ class _GameScreenState extends State<GameScreen> {
 
   List<LeaderboardEntry> _topAllTime = [];
   List<LeaderboardEntry> _topWeekly = [];
+  (int, LeaderboardEntry)? _userAllTimeRank;
+  (int, LeaderboardEntry)? _userWeeklyRank;
   _LeaderboardTab _activeTab = _LeaderboardTab.allTime;
   GameResult? _savedResult;
 
@@ -48,7 +50,6 @@ class _GameScreenState extends State<GameScreen> {
   void _onEngineUpdate() {
     if (mounted) setState(() {});
     if (_engine.state == GameState.gameOver && _savedResult == null) {
-      // Save exactly once, immediately
       _savedResult = GameResult(
         score: _engine.score,
         lines: _engine.lines,
@@ -56,11 +57,36 @@ class _GameScreenState extends State<GameScreen> {
         date: DateTime.now(),
       );
       _history.addResult(_savedResult!);
-      // Defer dialog until after the current frame to avoid re-entrancy
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _showGameOverDialog();
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        String? congrats;
+        if (_auth.isLoggedIn && _auth.profile != null) {
+          congrats = await _autoSubmitIfQualified(_savedResult!);
+          if (mounted) await _loadLeaderboards();
+        }
+        if (mounted) _showGameOverDialog(congrats: congrats);
       });
     }
+  }
+
+  Future<String?> _autoSubmitIfQualified(GameResult result) async {
+    final uid = _auth.currentUser!.uid;
+    final profile = _auth.profile!;
+    final isTopTen = _topWeekly.length < 10 || result.score > _topWeekly.last.score;
+    final prevBest = await _leaderboard.fetchUserBestScoreThisWeek(uid);
+    final isPersonalBest = prevBest == null || result.score > prevBest;
+    if (!isTopTen && !isPersonalBest) return null;
+    await _leaderboard.submitScore(
+      result,
+      profile.alias,
+      uid: uid,
+      country: profile.country.isNotEmpty ? profile.country : null,
+    );
+    if (isTopTen) {
+      final rank = _topWeekly.where((e) => e.score > result.score).length + 1;
+      return '🏆 You made the weekly top 10!\nRank #$rank this week';
+    }
+    return '⭐ New personal best this week!';
   }
 
   void _goToMenu() {
@@ -73,13 +99,20 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   Future<void> _loadLeaderboards() async {
+    final uid = _auth.currentUser?.uid;
     try {
-      final all = await _leaderboard.fetchTopScores();
-      if (mounted) setState(() => _topAllTime = all);
+      final data = await _leaderboard.fetchAllTimeData(uid: uid);
+      if (mounted) setState(() {
+        _topAllTime = data.top10;
+        _userAllTimeRank = data.userRank;
+      });
     } catch (_) {}
     try {
-      final weekly = await _leaderboard.fetchWeeklyScores();
-      if (mounted) setState(() => _topWeekly = weekly);
+      final data = await _leaderboard.fetchWeeklyData(uid: uid);
+      if (mounted) setState(() {
+        _topWeekly = data.top10;
+        _userWeeklyRank = data.userRank;
+      });
     } catch (_) {}
   }
 
@@ -119,86 +152,130 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  void _showGameOverDialog() {
+  void _showGameOverDialog({String? congrats}) {
     if (_savedResult == null) return;
     final result = _savedResult!;
     HapticFeedback.heavyImpact();
-    final profile = _auth.profile;
-    final nameController = TextEditingController(text: profile?.alias ?? '');
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF16213E),
-        title: const Text('Game Over! 🐾', style: TextStyle(color: Colors.white)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Score: ${result.score}\nLines: ${result.lines}\nLevel: ${result.level}',
-              style: const TextStyle(color: Colors.white70, fontSize: 16),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              profile != null
-                  ? 'Name on leaderboard (your alias):'
-                  : 'Your name for the leaderboard:',
-              style: const TextStyle(color: Colors.white60, fontSize: 13),
-            ),
-            const SizedBox(height: 6),
-            TextField(
-              controller: nameController,
-              maxLength: 16,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: 'Anonymous...',
-                hintStyle: const TextStyle(color: Colors.white30),
-                counterStyle: const TextStyle(color: Colors.white30),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Colors.white24),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Color(0xFF533483)),
-                ),
+
+    if (_auth.isLoggedIn && _auth.profile != null) {
+      // Logged-in: score was auto-submitted if it qualified
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF16213E),
+          title: const Text('Game Over! 🐾', style: TextStyle(color: Colors.white)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                'Score: ${result.score}\nLines: ${result.lines}  ·  Level: ${result.level}',
+                style: const TextStyle(color: Colors.white70, fontSize: 16),
+                textAlign: TextAlign.center,
               ),
+              if (congrats != null) ...[
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF533483).withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFF533483)),
+                  ),
+                  child: Text(
+                    congrats,
+                    style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () { Navigator.pop(ctx); _goToMenu(); },
+              child: const Text('Menu'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _savedResult = null;
+                _engine.startGame();
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF533483)),
+              child: const Text('Play Again', style: TextStyle(color: Colors.white)),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              final name = nameController.text.trim().isEmpty ? 'Anonymous' : nameController.text.trim();
-              _leaderboard.submitScore(result, name,
-                uid: _auth.currentUser?.uid,
-                country: profile?.country,
-              ).then((_) => _loadLeaderboards()).catchError((_) {});
-              _goToMenu();
-            },
-            child: const Text('Menu'),
+      );
+    } else {
+      // Anonymous: let them enter a name and submit manually
+      final nameController = TextEditingController();
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF16213E),
+          title: const Text('Game Over! 🐾', style: TextStyle(color: Colors.white)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Score: ${result.score}\nLines: ${result.lines}\nLevel: ${result.level}',
+                style: const TextStyle(color: Colors.white70, fontSize: 16),
+              ),
+              const SizedBox(height: 16),
+              const Text('Your name for the leaderboard:', style: TextStyle(color: Colors.white60, fontSize: 13)),
+              const SizedBox(height: 6),
+              TextField(
+                controller: nameController,
+                maxLength: 16,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Anonymous...',
+                  hintStyle: const TextStyle(color: Colors.white30),
+                  counterStyle: const TextStyle(color: Colors.white30),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Colors.white24),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Color(0xFF533483)),
+                  ),
+                ),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () async {
-              final name = nameController.text.trim().isEmpty ? 'Anonymous' : nameController.text.trim();
-              Navigator.pop(ctx);
-              try {
-                await _leaderboard.submitScore(result, name,
-                  uid: _auth.currentUser?.uid,
-                  country: profile?.country,
-                );
-                await _loadLeaderboards();
-              } catch (_) {}
-              _savedResult = null;
-              _engine.startGame();
-            },
-            child: const Text('Submit & Play Again'),
-          ),
-        ],
-      ),
-    );
+          actions: [
+            TextButton(
+              onPressed: () {
+                final name = nameController.text.trim().isEmpty ? 'Anonymous' : nameController.text.trim();
+                Navigator.pop(ctx);
+                _leaderboard.submitScore(result, name).then((_) => _loadLeaderboards()).catchError((_) {});
+                _goToMenu();
+              },
+              child: const Text('Menu'),
+            ),
+            TextButton(
+              onPressed: () async {
+                final name = nameController.text.trim().isEmpty ? 'Anonymous' : nameController.text.trim();
+                Navigator.pop(ctx);
+                try {
+                  await _leaderboard.submitScore(result, name);
+                  await _loadLeaderboards();
+                } catch (_) {}
+                _savedResult = null;
+                _engine.startGame();
+              },
+              child: const Text('Submit & Play Again'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   @override
@@ -325,6 +402,10 @@ class _GameScreenState extends State<GameScreen> {
 
   Widget _buildGlobalLeaderboard() {
     final entries = _activeTab == _LeaderboardTab.allTime ? _topAllTime : _topWeekly;
+    final userRank = _activeTab == _LeaderboardTab.allTime ? _userAllTimeRank : _userWeeklyRank;
+    final uid = _auth.currentUser?.uid;
+    final userInTopTen = userRank != null && userRank.$1 <= 10;
+
     return Container(
       width: 280,
       padding: const EdgeInsets.all(12),
@@ -352,35 +433,61 @@ class _GameScreenState extends State<GameScreen> {
           const SizedBox(height: 8),
           if (entries.isEmpty)
             const Text('No entries yet', style: TextStyle(color: Colors.white38, fontSize: 12))
-          else
+          else ...[
             ...entries.asMap().entries.map((entry) {
               final i = entry.key;
               final r = entry.value;
+              final isMe = uid != null && r.uid == uid;
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 2),
                 child: Row(
                   children: [
                     SizedBox(
                       width: 24,
-                      child: Text('${i + 1}.', style: const TextStyle(color: Colors.white54, fontSize: 13)),
+                      child: Text('${i + 1}.', style: TextStyle(color: isMe ? const Color(0xFFFFD700) : Colors.white54, fontSize: 13)),
                     ),
                     Expanded(
                       child: Text(
-                        r.name,
-                        style: const TextStyle(color: Colors.white, fontSize: 13),
+                        isMe ? '${r.name} (you)' : r.name,
+                        style: TextStyle(color: isMe ? const Color(0xFFFFD700) : Colors.white, fontSize: 13, fontWeight: isMe ? FontWeight.bold : FontWeight.normal),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     if (r.country.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 4),
-                        child: Text(r.country, style: const TextStyle(fontSize: 12)),
-                      ),
-                    Text('${r.score} pts', style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                      Padding(padding: const EdgeInsets.only(right: 4), child: Text(r.country, style: const TextStyle(fontSize: 12))),
+                    Text('${r.score} pts', style: TextStyle(color: isMe ? const Color(0xFFFFD700) : Colors.white70, fontSize: 13)),
                   ],
                 ),
               );
             }),
+            // Show user's rank if they're outside top 10
+            if (uid != null && userRank != null && !userInTopTen) ...[
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 4),
+                child: Divider(color: Colors.white12, height: 1),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 24,
+                      child: Text('#${userRank.$1}', style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
+                    ),
+                    Expanded(
+                      child: Text('${userRank.$2.name} (you)', style: const TextStyle(color: Color(0xFFFFD700), fontSize: 13, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+                    ),
+                    Text('${userRank.$2.score} pts', style: const TextStyle(color: Color(0xFFFFD700), fontSize: 13)),
+                  ],
+                ),
+              ),
+            ],
+            if (uid != null && userRank == null && _auth.isLoggedIn)
+              const Padding(
+                padding: EdgeInsets.only(top: 6),
+                child: Text('You are not ranked yet', style: TextStyle(color: Colors.white24, fontSize: 11)),
+              ),
+          ],
         ],
       ),
     );
