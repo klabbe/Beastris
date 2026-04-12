@@ -32,6 +32,12 @@ class AuthService extends ChangeNotifier {
     try {
       final doc = await _db.collection('users').doc(uid).get();
       if (doc.exists) return UserProfile.fromMap(uid, doc.data()!);
+      // Profile missing (e.g. save failed at registration) — create a default one
+      final email = _auth.currentUser?.email ?? '';
+      final alias = email.contains('@') ? email.split('@').first : 'Player';
+      final defaultProfile = UserProfile(uid: uid, alias: alias);
+      await _saveProfile(defaultProfile);
+      return defaultProfile;
     } catch (e) {
       debugPrint('AuthService: failed to fetch profile: $e');
     }
