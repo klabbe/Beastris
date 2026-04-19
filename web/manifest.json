@@ -1,6 +1,6 @@
 {
-    "name": "beastris",
-    "short_name": "beastris",
+    "name": "BeastBlocks",
+    "short_name": "BeastBlocks",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

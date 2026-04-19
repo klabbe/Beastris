@@ -1,4 +1,4 @@
-# 🐾 Beastris
+# 🐾 BeastBlocks
 
 A Tetris-style puzzle game built with Flutter, where classic block shapes are replaced by animal-themed pieces.
 

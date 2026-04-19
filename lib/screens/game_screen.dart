@@ -10,6 +10,7 @@ import '../services/leaderboard_service.dart';
 import '../widgets/game_board.dart';
 import '../widgets/next_piece.dart';
 import '../widgets/score_panel.dart';
+import 'privacy_policy_screen.dart';
 
 enum _LeaderboardTab { allTime, thisWeek }
 
@@ -211,8 +212,7 @@ class _GameScreenState extends State<GameScreen> {
         ),
       );
     } else {
-      // Anonymous: let them enter a name and submit manually
-      final nameController = TextEditingController();
+      // Not logged in: offer to sign in to save online, or continue without
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -221,57 +221,41 @@ class _GameScreenState extends State<GameScreen> {
           title: const Text('Game Over! 🐾', style: TextStyle(color: Colors.white)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Text(
-                'Score: ${result.score}\nLines: ${result.lines}\nLevel: ${result.level}',
+                'Score: ${result.score}\nLines: ${result.lines}  ·  Level: ${result.level}',
                 style: const TextStyle(color: Colors.white70, fontSize: 16),
+                textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
-              const Text('Your name for the leaderboard:', style: TextStyle(color: Colors.white60, fontSize: 13)),
-              const SizedBox(height: 6),
-              TextField(
-                controller: nameController,
-                maxLength: 16,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: 'Anonymous...',
-                  hintStyle: const TextStyle(color: Colors.white30),
-                  counterStyle: const TextStyle(color: Colors.white30),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Colors.white24),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFF533483)),
-                  ),
-                ),
+              const Text(
+                'Sign in to save your score to the global leaderboard!',
+                style: TextStyle(color: Colors.white60, fontSize: 13),
+                textAlign: TextAlign.center,
               ),
             ],
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                final name = nameController.text.trim().isEmpty ? 'Anonymous' : nameController.text.trim();
-                Navigator.pop(ctx);
-                _leaderboard.submitScore(result, name).then((_) => _loadLeaderboards()).catchError((_) {});
-                _goToMenu();
-              },
+              onPressed: () { Navigator.pop(ctx); _goToMenu(); },
               child: const Text('Menu'),
             ),
             TextButton(
-              onPressed: () async {
-                final name = nameController.text.trim().isEmpty ? 'Anonymous' : nameController.text.trim();
+              onPressed: () {
                 Navigator.pop(ctx);
-                try {
-                  await _leaderboard.submitScore(result, name);
-                  await _loadLeaderboards();
-                } catch (_) {}
                 _savedResult = null;
                 _engine.startGame();
               },
-              child: const Text('Submit & Play Again'),
+              child: const Text('Play Again'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _showAuthDialogThenSubmit(result);
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF533483)),
+              child: const Text('Sign In', style: TextStyle(color: Colors.white)),
             ),
           ],
         ),
@@ -347,12 +331,12 @@ class _GameScreenState extends State<GameScreen> {
             ),
             const SizedBox(height: 8),
             const Text(
-              '🐾 BEASTRIS 🐾',
+              '🐾 BEASTBLOCKS 🐾',
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 36,
+                fontSize: 28,
                 fontWeight: FontWeight.bold,
-                letterSpacing: 4,
+                letterSpacing: 2,
               ),
             ),
             const SizedBox(height: 8),
@@ -522,6 +506,21 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
+  void _showAuthDialogThenSubmit(GameResult result) {
+    showDialog(
+      context: context,
+      builder: (ctx) => _AuthDialog(auth: _auth),
+    ).then((_) async {
+      if (!mounted) return;
+      setState(() {});
+      if (_auth.isLoggedIn && _auth.profile != null) {
+        final congrats = await _autoSubmitIfQualified(result);
+        if (mounted) await _loadLeaderboards();
+        if (mounted) _showGameOverDialog(congrats: congrats);
+      }
+    });
+  }
+
   void _showProfileDialog() {
     showDialog(
       context: context,
@@ -596,8 +595,8 @@ class _GameScreenState extends State<GameScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                '🐾 BEASTRIS',
-                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                '🐾 BEASTBLOCKS',
+                style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 1),
               ),
               Row(
                 mainAxisSize: MainAxisSize.min,
@@ -737,6 +736,7 @@ class _AuthDialogState extends State<_AuthDialog> {
   bool _loading = false;
   String? _error;
   String? _selectedCountryCode;
+  bool _acceptedPolicy = false;
 
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
@@ -784,6 +784,10 @@ class _AuthDialogState extends State<_AuthDialog> {
       setState(() => _error = 'Alias is required for registration.');
       return;
     }
+    if (_isRegister && !_acceptedPolicy) {
+      setState(() => _error = 'You must accept the privacy policy to register.');
+      return;
+    }
     setState(() { _loading = true; _error = null; });
     String? err;
     if (_isRegister) {
@@ -809,6 +813,8 @@ class _AuthDialogState extends State<_AuthDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       backgroundColor: const Color(0xFF16213E),
+      contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
       title: Text(
         _isRegister ? 'Create Account' : 'Sign In',
         style: const TextStyle(color: Colors.white),
@@ -818,45 +824,81 @@ class _AuthDialogState extends State<_AuthDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             _field(_emailCtrl, 'Email', keyboardType: TextInputType.emailAddress),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             _field(_passwordCtrl, 'Password', obscure: true),
             if (_isRegister) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               _labelledField(
                 label: 'Alias',
                 hint: 'Shown on the leaderboard',
                 ctrl: _aliasCtrl,
                 maxLength: 16,
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               _labelledField(
                 label: 'Name (optional)',
                 hint: 'Your real name — not shown publicly',
                 ctrl: _nameCtrl,
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               _countryDropdown(
                 value: _selectedCountryCode,
                 onChanged: (v) => setState(() => _selectedCountryCode = v),
               ),
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Checkbox(
+                    value: _acceptedPolicy,
+                    activeColor: const Color(0xFF533483),
+                    checkColor: Colors.white,
+                    side: const BorderSide(color: Colors.white38),
+                    onChanged: _loading ? null : (v) => setState(() => _acceptedPolicy = v ?? false),
+                  ),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()),
+                      ),
+                      child: RichText(
+                        text: const TextSpan(children: [
+                          TextSpan(text: 'I have read and accept the ', style: TextStyle(color: Colors.white60, fontSize: 12)),
+                          TextSpan(text: 'Privacy Policy', style: TextStyle(color: Color(0xFF7B68EE), fontSize: 12, decoration: TextDecoration.underline)),
+                        ]),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ],
             if (_error != null) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               Text(_error!, style: const TextStyle(color: Colors.redAccent, fontSize: 13)),
             ],
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                GestureDetector(
+                  onTap: _loading ? null : () => setState(() { _isRegister = !_isRegister; _error = null; }),
+                  child: Text(
+                    _isRegister ? 'Already have an account?' : 'Create account',
+                    style: const TextStyle(color: Color(0xFF7B68EE), fontSize: 13),
+                  ),
+                ),
+                if (!_isRegister)
+                  GestureDetector(
+                    onTap: _loading ? null : _forgotPassword,
+                    child: const Text('Forgot password?', style: TextStyle(color: Colors.white38, fontSize: 12)),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
           ],
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: _loading ? null : () => setState(() { _isRegister = !_isRegister; _error = null; }),
-          child: Text(_isRegister ? 'Already have an account?' : 'Create account'),
-        ),
-        if (!_isRegister)
-          TextButton(
-            onPressed: _loading ? null : _forgotPassword,
-            child: const Text('Forgot password?', style: TextStyle(color: Colors.white38, fontSize: 12)),
-          ),
         TextButton(onPressed: _loading ? null : () => Navigator.of(context).pop(), child: const Text('Cancel')),
         ElevatedButton(
           onPressed: _loading ? null : _submit,
@@ -1020,6 +1062,40 @@ class _ProfileDialogState extends State<_ProfileDialog> {
     if (mounted) Navigator.of(context).pop();
   }
 
+  Future<void> _deleteAccount() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF16213E),
+        title: const Text('Delete account?', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'This permanently deletes your account, profile, and all leaderboard entries. '
+          'This action cannot be undone.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete forever', style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _loading = true);
+    final err = await widget.auth.deleteAccount();
+    if (!mounted) return;
+    if (err != null) {
+      setState(() { _loading = false; _error = err; });
+    } else {
+      Navigator.of(context).pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -1051,13 +1127,27 @@ class _ProfileDialogState extends State<_ProfileDialog> {
               const SizedBox(height: 10),
               Text(_error!, style: const TextStyle(color: Colors.redAccent, fontSize: 13)),
             ],
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()),
+              ),
+              child: const Text(
+                'Privacy Policy',
+                style: TextStyle(color: Color(0xFF7B68EE), fontSize: 12, decoration: TextDecoration.underline),
+              ),
+            ),
           ],
         ),
       ),
       actions: [
         TextButton(
+          onPressed: _loading ? null : _deleteAccount,
+          child: const Text('Delete Account', style: TextStyle(color: Colors.redAccent, fontSize: 12)),
+        ),
+        TextButton(
           onPressed: _loading ? null : _signOut,
-          child: const Text('Sign Out', style: TextStyle(color: Colors.redAccent)),
+          child: const Text('Sign Out', style: TextStyle(color: Colors.white54)),
         ),
         TextButton(onPressed: _loading ? null : () => Navigator.of(context).pop(), child: const Text('Cancel')),
         ElevatedButton(

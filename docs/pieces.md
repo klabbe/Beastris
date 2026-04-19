@@ -1,6 +1,6 @@
 # Pieces
 
-Beastris has 7 animal-themed pieces, each mapping to a classic Tetris shape. Pieces are defined in `lib/models/piece.dart`.
+BeastBlocks has 7 animal-themed pieces, each mapping to a classic Tetris shape. Pieces are defined in `lib/models/piece.dart`.
 
 ## Piece List
 

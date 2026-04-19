@@ -40,13 +40,15 @@ class LeaderboardService {
       final all = snapshot.docs
           .map((d) => LeaderboardEntry.fromMap(d.data()))
           .toList();
-      final top10 = all.take(maxEntries).toList();
+      // Deduplicate: keep only the best score per uid (anonymous entries stay)
+      final deduped = _deduplicateByUid(all);
+      final top10 = deduped.take(maxEntries).toList();
       (int, LeaderboardEntry)? userRank;
       if (uid != null) {
-        final idx = all.indexWhere((e) => e.uid == uid);
-        if (idx >= 0) userRank = (idx + 1, all[idx]);
+        final idx = deduped.indexWhere((e) => e.uid == uid);
+        if (idx >= 0) userRank = (idx + 1, deduped[idx]);
       }
-      debugPrint('Leaderboard: fetched ${all.length} entries');
+      debugPrint('Leaderboard: fetched ${all.length} entries (${deduped.length} unique players)');
       return (top10: top10, userRank: userRank);
     } catch (e) {
       debugPrint('Leaderboard read ERROR: $e');
@@ -69,11 +71,13 @@ class LeaderboardService {
           .map((d) => LeaderboardEntry.fromMap(d.data()))
           .where((e) => e.timestamp >= weekAgo)
           .toList();
-      final top10 = weekly.take(maxEntries).toList();
+      // Deduplicate: keep only the best score per uid (anonymous entries stay)
+      final deduped = _deduplicateByUid(weekly);
+      final top10 = deduped.take(maxEntries).toList();
       (int, LeaderboardEntry)? userRank;
       if (uid != null) {
-        final idx = weekly.indexWhere((e) => e.uid == uid);
-        if (idx >= 0) userRank = (idx + 1, weekly[idx]);
+        final idx = deduped.indexWhere((e) => e.uid == uid);
+        if (idx >= 0) userRank = (idx + 1, deduped[idx]);
       }
       debugPrint('Leaderboard weekly: ${top10.length} entries');
       return (top10: top10, userRank: userRank);
@@ -105,6 +109,18 @@ class LeaderboardService {
       debugPrint('Leaderboard: fetchUserBestScoreThisWeek error: $e');
       return null;
     }
+  }
+
+  /// Keep only the best (first) entry per uid. Entries with empty uid are always kept.
+  static List<LeaderboardEntry> _deduplicateByUid(List<LeaderboardEntry> sorted) {
+    final seen = <String>{};
+    final result = <LeaderboardEntry>[];
+    for (final e in sorted) {
+      if (e.uid.isEmpty || seen.add(e.uid)) {
+        result.add(e);
+      }
+    }
+    return result;
   }
 }
 

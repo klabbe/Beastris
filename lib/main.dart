@@ -10,16 +10,16 @@ void main() async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-  runApp(const BeastrisApp());
+  runApp(const BeastBlocksApp());
 }
 
-class BeastrisApp extends StatelessWidget {
-  const BeastrisApp({super.key});
+class BeastBlocksApp extends StatelessWidget {
+  const BeastBlocksApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Beastris',
+      title: 'BeastBlocks',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,

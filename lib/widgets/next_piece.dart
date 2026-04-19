@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 
 import '../models/piece.dart';
@@ -71,6 +73,17 @@ class _PreviewPainter extends CustomPainter {
       canvas.drawRRect(
         RRect.fromRectAndRadius(rect, const Radius.circular(2)),
         paint,
+      );
+
+      // Draw emoji on cell
+      final paragraphBuilder = ui.ParagraphBuilder(
+        ui.ParagraphStyle(textAlign: TextAlign.center, fontSize: cellSize * 0.6),
+      )..addText(piece.emoji);
+      final paragraph = paragraphBuilder.build()
+        ..layout(ui.ParagraphConstraints(width: rect.width));
+      canvas.drawParagraph(
+        paragraph,
+        Offset(rect.left, rect.top + (rect.height - paragraph.height) / 2),
       );
     }
   }

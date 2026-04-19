@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 
 import '../game/engine.dart';
@@ -129,6 +131,19 @@ class _BoardPainter extends CustomPainter {
             ),
             highlightPaint,
           );
+
+          // Draw emoji on cell
+          if (cell.emoji != null) {
+            final paragraphBuilder = ui.ParagraphBuilder(
+              ui.ParagraphStyle(textAlign: TextAlign.center, fontSize: cellW * 0.6),
+            )..addText(cell.emoji!);
+            final paragraph = paragraphBuilder.build()
+              ..layout(ui.ParagraphConstraints(width: rect.width));
+            canvas.drawParagraph(
+              paragraph,
+              Offset(rect.left, rect.top + (rect.height - paragraph.height) / 2),
+            );
+          }
         }
       }
     }

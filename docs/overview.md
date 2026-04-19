@@ -1,6 +1,6 @@
 # Overview
 
-Beastris is a falling-block puzzle game inspired by Tetris. Instead of abstract geometric shapes, each piece is themed as an animal with its own emoji and color.
+BeastBlocks is a falling-block puzzle game inspired by Tetris. Instead of abstract geometric shapes, each piece is themed as an animal with its own emoji and color.
 
 ## Features
 
@@ -24,7 +24,7 @@ Beastris is a falling-block puzzle game inspired by Tetris. Instead of abstract 
 | 1 line clear | 100 × level |
 | 2 line clear | 300 × level |
 | 3 line clear | 500 × level |
-| 4 line clear (Beastris!) | 800 × level |
+| 4 line clear (Beast Combo!) | 800 × level |
 
 ## Leveling
 

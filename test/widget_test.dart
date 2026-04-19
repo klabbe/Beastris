@@ -4,8 +4,8 @@ import 'package:beastris/main.dart';
 
 void main() {
   testWidgets('App starts and shows title', (WidgetTester tester) async {
-    await tester.pumpWidget(const BeastrisApp());
-    expect(find.text('🐾 BEASTRIS 🐾'), findsOneWidget);
+    await tester.pumpWidget(const BeastBlocksApp());
+    expect(find.text('🐾 BEASTBLOCKS 🐾'), findsOneWidget);
     expect(find.text('START GAME'), findsOneWidget);
   });
 }

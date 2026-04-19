@@ -33,7 +33,7 @@ class BeastPiece {
   }
 }
 
-/// The 7 animal-shaped pieces for Beastris.
+/// The 7 animal-shaped pieces for BeastBlocks.
 /// Each mimics a classic Tetris shape but is themed as an animal.
 class BeastPieces {
   // 🐍 Snake — S-piece

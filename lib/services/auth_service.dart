@@ -118,6 +118,42 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Permanently delete the account and all associated data (GDPR Art. 17).
+  /// Deletes: all leaderboard entries, users/{uid} doc, Firebase Auth account.
+  Future<String?> deleteAccount() async {
+    final user = _auth.currentUser;
+    if (user == null) return 'Not signed in.';
+    final uid = user.uid;
+    try {
+      // 1. Anonymize leaderboard entries — clear uid so they are no longer
+      //    linked to any account, even if Firebase recycles this uid later.
+      final leaderboard = await _db
+          .collection('leaderboard')
+          .where('uid', isEqualTo: uid)
+          .get();
+      final batch = _db.batch();
+      for (final doc in leaderboard.docs) {
+        batch.update(doc.reference, {'uid': ''});
+      }
+      // 2. Delete profile document
+      batch.delete(_db.collection('users').doc(uid));
+      await batch.commit();
+      // 3. Delete Firebase Auth account (must be last)
+      await user.delete();
+      _profile = null;
+      notifyListeners();
+      return null;
+    } on FirebaseAuthException catch (e) {
+      // delete() can fail if the session is stale — requires re-authentication
+      if (e.code == 'requires-recent-login') {
+        return 'For security, please sign out and sign in again before deleting your account.';
+      }
+      return _authError(e.code);
+    } catch (e) {
+      return 'Failed to delete account. Please try again.';
+    }
+  }
+
   Future<String?> updateProfile(UserProfile profile) async {
     try {
       if (profile.alias != _profile?.alias) {
