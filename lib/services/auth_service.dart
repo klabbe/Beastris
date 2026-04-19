@@ -5,25 +5,40 @@ import 'package:flutter/foundation.dart';
 import '../models/user_profile.dart';
 
 class AuthService extends ChangeNotifier {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseAuth _auth;
+  final FirebaseFirestore _db;
 
   UserProfile? _profile;
   UserProfile? get profile => _profile;
   User? get currentUser => _auth.currentUser;
   bool get isLoggedIn => _auth.currentUser != null;
 
-  AuthService() {
-    _auth.authStateChanges().listen(_onAuthChanged);
+  late final _authSub = _auth.authStateChanges().listen(_onAuthChanged);
+
+  bool _disposed = false;
+  bool _registering = false;
+
+  AuthService({FirebaseAuth? auth, FirebaseFirestore? db})
+      : _auth = auth ?? FirebaseAuth.instance,
+        _db = db ?? FirebaseFirestore.instance {
+    _authSub; // Force listener creation
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _authSub.cancel();
+    super.dispose();
   }
 
   Future<void> _onAuthChanged(User? user) async {
+    if (_disposed || _registering) return;
     if (user == null) {
       _profile = null;
       notifyListeners();
     } else if (_profile?.uid != user.uid) {
-      // Only fetch from Firestore if we don't already have this user's profile
       _profile = await _fetchProfile(user.uid);
+      if (_disposed) return;
       notifyListeners();
     }
   }
@@ -64,6 +79,7 @@ class AuthService extends ChangeNotifier {
     try {
       final available = await _isAliasAvailable(profile.alias);
       if (!available) return 'That alias is already taken. Please choose another.';
+      _registering = true;
       final cred = await _auth.createUserWithEmailAndPassword(
           email: email, password: password);
       final fullProfile = UserProfile(
@@ -74,14 +90,20 @@ class AuthService extends ChangeNotifier {
       );
       // Set profile immediately so _onAuthChanged skips the redundant fetch
       _profile = fullProfile;
-      // Save to Firestore in background
-      _saveProfile(fullProfile)
-          .catchError((e) => debugPrint('Save profile failed: $e'));
+      // Await Firestore save so callers can rely on it being persisted
+      try {
+        await _saveProfile(fullProfile);
+      } catch (e) {
+        debugPrint('Save profile failed: $e');
+      }
+      _registering = false;
       notifyListeners();
       return null;
     } on FirebaseAuthException catch (e) {
+      _registering = false;
       return _authError(e.code);
     } catch (e) {
+      _registering = false;
       return 'Registration failed. Please try again.';
     }
   }
@@ -131,13 +153,15 @@ class AuthService extends ChangeNotifier {
           .collection('leaderboard')
           .where('uid', isEqualTo: uid)
           .get();
-      final batch = _db.batch();
-      for (final doc in leaderboard.docs) {
-        batch.update(doc.reference, {'uid': ''});
+      if (leaderboard.docs.isNotEmpty) {
+        final batch = _db.batch();
+        for (final doc in leaderboard.docs) {
+          batch.update(doc.reference, {'uid': ''});
+        }
+        await batch.commit();
       }
-      // 2. Delete profile document
-      batch.delete(_db.collection('users').doc(uid));
-      await batch.commit();
+      // 2. Delete profile document (individual delete, not batch, for reliability)
+      await _db.collection('users').doc(uid).delete();
       // 3. Delete Firebase Auth account (must be last)
       await user.delete();
       _profile = null;

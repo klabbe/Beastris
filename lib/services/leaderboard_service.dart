@@ -7,7 +7,10 @@ class LeaderboardService {
   static const _collection = 'leaderboard';
   static const int maxEntries = 10;
 
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseFirestore _db;
+
+  LeaderboardService({FirebaseFirestore? db})
+      : _db = db ?? FirebaseFirestore.instance;
 
   Future<void> submitScore(GameResult result, String playerName,
       {String? uid, String? country}) async {
