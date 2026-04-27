@@ -1,6 +1,6 @@
 # Architecture
 
-Beastris follows a clean separation between game logic, data models, and UI.
+BeastBlocks follows a clean separation between game logic, data models, and UI.
 
 ## Project Structure
 

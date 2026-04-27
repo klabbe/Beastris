@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
-import 'package:beastris/main.dart';
-import 'package:beastris/models/user_profile.dart';
-import 'package:beastris/services/auth_service.dart';
+import 'package:beastblocks/main.dart';
+import 'package:beastblocks/models/user_profile.dart';
+import 'package:beastblocks/services/auth_service.dart';
 
 import 'helpers/test_bootstrap.dart';
 import 'helpers/test_helpers.dart';

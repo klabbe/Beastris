@@ -6,8 +6,8 @@
 //
 // Run with: flutter test test/auth_service_test.dart
 
-import 'package:beastris/models/user_profile.dart';
-import 'package:beastris/services/auth_service.dart';
+import 'package:beastblocks/models/user_profile.dart';
+import 'package:beastblocks/services/auth_service.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 import 'package:flutter_test/flutter_test.dart';

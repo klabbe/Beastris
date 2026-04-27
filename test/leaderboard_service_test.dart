@@ -6,8 +6,8 @@
 //
 // Run with: flutter test test/leaderboard_service_test.dart
 
-import 'package:beastris/models/game_history.dart';
-import 'package:beastris/services/leaderboard_service.dart';
+import 'package:beastblocks/models/game_history.dart';
+import 'package:beastblocks/services/leaderboard_service.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 

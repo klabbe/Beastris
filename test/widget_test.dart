@@ -3,7 +3,7 @@ import 'package:firebase_core_platform_interface/test.dart'
     show setupFirebaseCoreMocks;
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:beastris/main.dart';
+import 'package:beastblocks/main.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
