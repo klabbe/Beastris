@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.beastris" "\0"
-            VALUE "FileDescription", "beastris" "\0"
+            VALUE "CompanyName", "com.alskami" "\0"
+            VALUE "FileDescription", "BeastBlocks" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "beastris" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.beastris. All rights reserved." "\0"
-            VALUE "OriginalFilename", "beastris.exe" "\0"
-            VALUE "ProductName", "beastris" "\0"
+            VALUE "InternalName", "beastblocks" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 com.alskami. All rights reserved." "\0"
+            VALUE "OriginalFilename", "beastblocks.exe" "\0"
+            VALUE "ProductName", "BeastBlocks" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
