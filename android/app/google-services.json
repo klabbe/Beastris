@@ -7,9 +7,9 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:771555519489:android:d836c876ec0e42c6dae400",
+        "mobilesdk_app_id": "1:771555519489:android:39f9cdd8a266373ddae400",
         "android_client_info": {
-          "package_name": "com.beastris.beastris"
+          "package_name": "com.alskami.beastblocks"
         }
       },
       "oauth_client": [],
