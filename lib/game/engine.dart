@@ -9,6 +9,8 @@ import '../models/piece.dart';
 
 enum GameState { idle, playing, paused, gameOver }
 
+enum BombType { grenade, bomb }
+
 class GameEngine extends ChangeNotifier {
   static const int rows = 20;
   static const int cols = 10;
@@ -26,6 +28,13 @@ class GameEngine extends ChangeNotifier {
   GameState _state = GameState.idle;
   Timer? _timer;
 
+  // Bomb state
+  bool _grenadeAvailable = true;
+  bool _bombAvailable = true;
+  BombType? _activeBomb; // null = normal piece, non-null = bomb falling
+  // Explosion cells: list of {row, col} that just exploded (for animation)
+  List<({int row, int col})> _explosionCells = [];
+
   GameEngine() {
     _initBoard();
   }
@@ -40,6 +49,10 @@ class GameEngine extends ChangeNotifier {
   int get lines => _lines;
   int get level => _level;
   GameState get state => _state;
+  bool get grenadeAvailable => _grenadeAvailable;
+  bool get bombAvailable => _bombAvailable;
+  BombType? get activeBomb => _activeBomb;
+  List<({int row, int col})> get explosionCells => _explosionCells;
 
   // --- Board with current piece merged (for rendering) ---
   List<List<Cell>> get displayBoard {
@@ -79,6 +92,10 @@ class GameEngine extends ChangeNotifier {
     _lines = 0;
     _level = 1;
     _state = GameState.playing;
+    _grenadeAvailable = true;
+    _bombAvailable = true;
+    _activeBomb = null;
+    _explosionCells = [];
     _nextPiece = _randomPiece();
     _spawnPiece();
     _startTimer();
@@ -153,6 +170,35 @@ class GameEngine extends ChangeNotifier {
     _lockPiece();
   }
 
+  // --- Bomb actions ---
+  // Activating grenade/bomb replaces the NEXT (queued) piece.
+  void activateGrenade() {
+    if (_state != GameState.playing) return;
+    if (!_grenadeAvailable) return;
+    _grenadeAvailable = false;
+    _nextPiece = _makeBombPiece(BombType.grenade);
+    notifyListeners();
+  }
+
+  void activateBomb() {
+    if (_state != GameState.playing) return;
+    if (!_bombAvailable) return;
+    _bombAvailable = false;
+    _nextPiece = _makeBombPiece(BombType.bomb);
+    notifyListeners();
+  }
+
+  BeastPiece _makeBombPiece(BombType type) {
+    return BeastPiece(
+      name: type == BombType.grenade ? 'Grenade' : 'Bomb',
+      emoji: type == BombType.grenade ? '💣' : '💥',
+      color: type == BombType.grenade
+          ? const Color(0xFF607D8B)
+          : const Color(0xFFE53935),
+      shape: const [[0, 0]],
+    );
+  }
+
   // --- Internal ---
   void _initBoard() {
     _board = List.generate(rows, (_) => List.filled(cols, Cell.empty));
@@ -164,6 +210,14 @@ class GameEngine extends ChangeNotifier {
 
   void _spawnPiece() {
     _currentPiece = _nextPiece ?? _randomPiece();
+    // Detect if the spawned piece is a bomb/grenade
+    if (_currentPiece!.name == 'Grenade') {
+      _activeBomb = BombType.grenade;
+    } else if (_currentPiece!.name == 'Bomb') {
+      _activeBomb = BombType.bomb;
+    } else {
+      _activeBomb = null;
+    }
     _nextPiece = _randomPiece();
     _pieceRow = 0;
     _pieceCol = (cols - _currentPiece!.width) ~/ 2;
@@ -202,7 +256,29 @@ class GameEngine extends ChangeNotifier {
 
   void _lockPiece() {
     if (_currentPiece == null) return;
-    // Place piece on board
+
+    if (_activeBomb != null) {
+      // Explode at the blocking cell (one row below landing position),
+      // or at landing row if already at the bottom.
+      final impactRow = (_pieceRow + 1 < rows) ? _pieceRow + 1 : _pieceRow;
+      final impactCol = _pieceCol;
+      _explode(impactRow, impactCol, _activeBomb!);
+      _activeBomb = null;
+      _currentPiece = null;
+      // Clear completed lines after explosion
+      final cleared = _clearLines();
+      if (cleared > 0) {
+        _lines += cleared;
+        _score += _lineScore(cleared);
+        _applyLevelUp();
+        _startTimer();
+      }
+      _spawnPiece();
+      if (_state != GameState.gameOver) notifyListeners();
+      return;
+    }
+
+    // Normal piece lock
     for (final offset in _currentPiece!.shape) {
       final r = _pieceRow + offset[0];
       final c = _pieceCol + offset[1];
@@ -219,7 +295,7 @@ class GameEngine extends ChangeNotifier {
     if (cleared > 0) {
       _lines += cleared;
       _score += _lineScore(cleared);
-      _level = (_lines ~/ 10) + 1;
+      _applyLevelUp();
       // Restart timer with new speed
       _startTimer();
     }
@@ -229,6 +305,33 @@ class GameEngine extends ChangeNotifier {
     if (_state != GameState.gameOver) {
       notifyListeners();
     }
+  }
+
+  void _explode(int row, int col, BombType type) {
+    final cells = <({int row, int col})>[];
+    // Grenade: only the cell itself
+    // Bomb: 3x3 area around landing cell
+    final offsets = type == BombType.grenade
+        ? [const (0, 0)]
+        : [
+            const (-1, -1), const (-1, 0), const (-1, 1),
+            const (0, -1),  const (0, 0),  const (0, 1),
+            const (1, -1),  const (1, 0),  const (1, 1),
+          ];
+    for (final o in offsets) {
+      final r = row + o.$1;
+      final c = col + o.$2;
+      if (r >= 0 && r < rows && c >= 0 && c < cols) {
+        _board[r][c] = Cell.empty;
+        cells.add((row: r, col: c));
+      }
+    }
+    _explosionCells = cells;
+    // Clear explosion markers after a short delay
+    Future.delayed(const Duration(milliseconds: 400), () {
+      _explosionCells = [];
+      notifyListeners();
+    });
   }
 
   int _clearLines() {
@@ -247,6 +350,18 @@ class GameEngine extends ChangeNotifier {
   int _lineScore(int lines) {
     const scores = {1: 100, 2: 300, 3: 500, 4: 800};
     return (scores[lines] ?? 800) * _level;
+  }
+
+  void _applyLevelUp() {
+    final newLevel = (_lines ~/ 5) + 1;
+    if (newLevel > _level) {
+      _level = newLevel;
+      // Reactivate bombs on level up
+      _grenadeAvailable = true;
+      _bombAvailable = true;
+    } else {
+      _level = newLevel;
+    }
   }
 
   @override
