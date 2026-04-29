@@ -21,7 +21,7 @@ class GameScreen extends StatefulWidget {
   State<GameScreen> createState() => _GameScreenState();
 }
 
-class _GameScreenState extends State<GameScreen> {
+class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   final GameEngine _engine = GameEngine();
   final GameHistory _history = GameHistory();
   final LeaderboardService _leaderboard = LeaderboardService();
@@ -34,9 +34,24 @@ class _GameScreenState extends State<GameScreen> {
   _LeaderboardTab _activeTab = _LeaderboardTab.allTime;
   GameResult? _savedResult;
 
+  // Explosion animation
+  late AnimationController _explosionController;
+  late Animation<double> _explosionScale;
+  late Animation<double> _explosionFade;
+
   @override
   void initState() {
     super.initState();
+    _explosionController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _explosionScale = Tween<double>(begin: 0.3, end: 1.8).animate(
+      CurvedAnimation(parent: _explosionController, curve: Curves.easeOut),
+    );
+    _explosionFade = Tween<double>(begin: 1.0, end: 0.0).animate(
+      CurvedAnimation(parent: _explosionController, curve: Curves.easeIn),
+    );
     _engine.addListener(_onEngineUpdate);
     _auth.addListener(_onAuthChanged);
     _history.load().then((_) {
@@ -51,6 +66,10 @@ class _GameScreenState extends State<GameScreen> {
 
   void _onEngineUpdate() {
     if (mounted) setState(() {});
+    // Trigger explosion animation when cells explode
+    if (_engine.explosionCells.isNotEmpty) {
+      _explosionController.forward(from: 0);
+    }
     if (_engine.state == GameState.gameOver && _savedResult == null) {
       _savedResult = GameResult(
         score: _engine.score,
@@ -265,6 +284,7 @@ class _GameScreenState extends State<GameScreen> {
 
   @override
   void dispose() {
+    _explosionController.dispose();
     _engine.removeListener(_onEngineUpdate);
     _auth.removeListener(_onAuthChanged);
     _engine.dispose();
@@ -585,6 +605,51 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
+  Widget _buildBoardWithExplosions() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final boardWidth = constraints.maxWidth;
+        final boardHeight = boardWidth * GameEngine.rows / GameEngine.cols;
+        final cellW = boardWidth / GameEngine.cols;
+        final cellH = boardHeight / GameEngine.rows;
+
+        return SizedBox(
+          width: boardWidth,
+          height: boardHeight,
+          child: Stack(
+            children: [
+              GameBoard(engine: _engine),
+              // Explosion overlay
+              if (_engine.explosionCells.isNotEmpty)
+                ..._engine.explosionCells.map((cell) {
+                  return Positioned(
+                    left: cell.col * cellW,
+                    top: cell.row * cellH,
+                    width: cellW,
+                    height: cellH,
+                    child: AnimatedBuilder(
+                      animation: _explosionController,
+                      builder: (context, _) {
+                        return Opacity(
+                          opacity: _explosionFade.value,
+                          child: Transform.scale(
+                            scale: _explosionScale.value,
+                            child: const Center(
+                              child: Text('\ud83d\udca5', style: TextStyle(fontSize: 14)),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                }),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildGameLayout() {
     return Column(
       children: [
@@ -626,7 +691,7 @@ class _GameScreenState extends State<GameScreen> {
                 // Board
                 Expanded(
                   flex: 3,
-                  child: GameBoard(engine: _engine),
+                  child: _buildBoardWithExplosions(),
                 ),
                 const SizedBox(width: 8),
                 // Side panel
@@ -660,38 +725,56 @@ class _GameScreenState extends State<GameScreen> {
     const double gap = 4;
     return Padding(
       padding: const EdgeInsets.only(bottom: 16, top: 8),
-      child: Column(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Row 1: Hard drop centered
-          Row(
+          // D-pad: 3 rows
+          Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              SizedBox(width: btnSize + gap),
-              _controlButton(Icons.keyboard_double_arrow_down, _engine.hardDrop, btnSize),
-              SizedBox(width: btnSize + gap),
+              // Row 1: Hard drop centered
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(width: btnSize + gap),
+                  _controlButton(Icons.keyboard_double_arrow_down, _engine.hardDrop, btnSize),
+                  SizedBox(width: btnSize + gap),
+                ],
+              ),
+              SizedBox(height: gap),
+              // Row 2: Left | Rotate | Right
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _controlButton(Icons.arrow_left, _engine.moveLeft, btnSize),
+                  SizedBox(width: gap),
+                  _controlButton(Icons.rotate_right, _engine.rotate, btnSize),
+                  SizedBox(width: gap),
+                  _controlButton(Icons.arrow_right, _engine.moveRight, btnSize),
+                ],
+              ),
+              SizedBox(height: gap),
+              // Row 3: Soft drop centered
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(width: btnSize + gap),
+                  _controlButton(Icons.arrow_drop_down, _engine.softDrop, btnSize),
+                  SizedBox(width: btnSize + gap),
+                ],
+              ),
             ],
           ),
-          SizedBox(height: gap),
-          // Row 2: Left | Rotate | Right
-          Row(
+          // Gap between d-pad and bomb buttons
+          const SizedBox(width: 32),
+          // Bomb column: grenade on top, bomb below
+          Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _controlButton(Icons.arrow_left, _engine.moveLeft, btnSize),
-              SizedBox(width: gap),
-              _controlButton(Icons.rotate_right, _engine.rotate, btnSize),
-              SizedBox(width: gap),
-              _controlButton(Icons.arrow_right, _engine.moveRight, btnSize),
-            ],
-          ),
-          SizedBox(height: gap),
-          // Row 3: Soft drop centered
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(width: btnSize + gap),
-              _controlButton(Icons.arrow_drop_down, _engine.softDrop, btnSize),
-              SizedBox(width: btnSize + gap),
+              _bombButton('💣', _engine.grenadeAvailable, _engine.activateGrenade, btnSize),
+              SizedBox(height: gap * 2),
+              _bombButton('💥', _engine.bombAvailable, _engine.activateBomb, btnSize),
             ],
           ),
         ],
@@ -714,6 +797,36 @@ class _GameScreenState extends State<GameScreen> {
           border: Border.all(color: Colors.white24),
         ),
         child: Icon(icon, color: Colors.white, size: 32),
+      ),
+    );
+  }
+
+  Widget _bombButton(String emoji, bool available, VoidCallback onPressed, double size) {
+    return GestureDetector(
+      onTap: available
+          ? () {
+              HapticFeedback.mediumImpact();
+              onPressed();
+            }
+          : null,
+      child: Opacity(
+        opacity: available ? 1.0 : 0.35,
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: available
+                ? Colors.orange.withValues(alpha: 0.2)
+                : Colors.grey.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: available ? Colors.orangeAccent.withValues(alpha: 0.6) : Colors.white24,
+            ),
+          ),
+          child: Center(
+            child: Text(emoji, style: const TextStyle(fontSize: 28)),
+          ),
+        ),
       ),
     );
   }
