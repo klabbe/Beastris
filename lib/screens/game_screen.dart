@@ -850,6 +850,7 @@ class _AuthDialogState extends State<_AuthDialog> {
   String? _error;
   String? _selectedCountryCode;
   bool _acceptedPolicy = false;
+  bool _ageConfirmed = false;
 
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
@@ -899,6 +900,10 @@ class _AuthDialogState extends State<_AuthDialog> {
     }
     if (_isRegister && !_acceptedPolicy) {
       setState(() => _error = 'You must accept the privacy policy to register.');
+      return;
+    }
+    if (_isRegister && !_ageConfirmed) {
+      setState(() => _error = 'You must confirm your age to register.');
       return;
     }
     setState(() { _loading = true; _error = null; });
@@ -984,6 +989,24 @@ class _AuthDialogState extends State<_AuthDialog> {
                   ),
                 ],
               ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Checkbox(
+                    value: _ageConfirmed,
+                    activeColor: const Color(0xFF533483),
+                    checkColor: Colors.white,
+                    side: const BorderSide(color: Colors.white38),
+                    onChanged: _loading ? null : (v) => setState(() => _ageConfirmed = v ?? false),
+                  ),
+                  const Expanded(
+                    child: Text(
+                      'I am 13 years or older, or have parental consent',
+                      style: TextStyle(color: Colors.white60, fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
             ],
             if (_error != null) ...[
               const SizedBox(height: 8),
@@ -994,7 +1017,7 @@ class _AuthDialogState extends State<_AuthDialog> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 GestureDetector(
-                  onTap: _loading ? null : () => setState(() { _isRegister = !_isRegister; _error = null; }),
+                  onTap: _loading ? null : () => setState(() { _isRegister = !_isRegister; _error = null; _ageConfirmed = false; _acceptedPolicy = false; }),
                   child: Text(
                     _isRegister ? 'Already have an account?' : 'Create account',
                     style: const TextStyle(color: Color(0xFF7B68EE), fontSize: 13),
