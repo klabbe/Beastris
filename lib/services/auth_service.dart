@@ -61,14 +61,26 @@ class AuthService extends ChangeNotifier {
 
   Future<bool> _isAliasAvailable(String alias, {String? excludeUid}) async {
     try {
-      final snapshot = await _db
+      // Check registered users
+      final userSnap = await _db
           .collection('users')
           .where('alias', isEqualTo: alias)
           .limit(1)
           .get();
-      if (snapshot.docs.isEmpty) return true;
-      // Available if the only match is the current user
-      return snapshot.docs.first.id == excludeUid;
+      if (userSnap.docs.isNotEmpty && userSnap.docs.first.id != excludeUid) {
+        return false;
+      }
+      // Check anonymous leaderboard entries (uid missing or empty)
+      final lbSnap = await _db
+          .collection('leaderboard')
+          .where('name', isEqualTo: alias)
+          .limit(1)
+          .get();
+      if (lbSnap.docs.isNotEmpty) {
+        final entryUid = lbSnap.docs.first.data()['uid'] as String? ?? '';
+        if (entryUid.isEmpty || entryUid != excludeUid) return false;
+      }
+      return true;
     } catch (_) {
       return true; // Fail open on network errors
     }
@@ -180,12 +192,27 @@ class AuthService extends ChangeNotifier {
 
   Future<String?> updateProfile(UserProfile profile) async {
     try {
-      if (profile.alias != _profile?.alias) {
+      final aliasChanged = profile.alias != _profile?.alias;
+      if (aliasChanged) {
         final available =
             await _isAliasAvailable(profile.alias, excludeUid: profile.uid);
         if (!available) return 'That alias is already taken. Please choose another.';
       }
       await _saveProfile(profile);
+      // Propagate new alias to all leaderboard entries for this user
+      if (aliasChanged) {
+        final entries = await _db
+            .collection('leaderboard')
+            .where('uid', isEqualTo: profile.uid)
+            .get();
+        if (entries.docs.isNotEmpty) {
+          final batch = _db.batch();
+          for (final doc in entries.docs) {
+            batch.update(doc.reference, {'name': profile.alias});
+          }
+          await batch.commit();
+        }
+      }
       _profile = profile;
       notifyListeners();
       return null;

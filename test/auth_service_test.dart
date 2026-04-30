@@ -62,6 +62,25 @@ void main() {
       expect(service.isLoggedIn, isFalse);
     });
 
+    test('rejects registration when alias exists in anonymous leaderboard entry', () async {
+      // An anonymous score (no uid) was submitted with this name
+      await db.collection('leaderboard').add({
+        'name': 'AnonHero',
+        'score': 999,
+        'lines': 20,
+        'level': 4,
+        'date': '2025-01-01',
+        'timestamp': 0,
+        'uid': '',
+      });
+
+      final profile = UserProfile(uid: '', alias: 'AnonHero');
+      final error = await service.register('new@example.com', 'password123', profile);
+
+      expect(error, contains('already taken'));
+      expect(service.isLoggedIn, isFalse);
+    });
+
     test('allows registration when alias belongs to same user (no self-conflict)', () async {
       // Register first user
       final profile = UserProfile(uid: '', alias: 'UniqueAlias');
@@ -206,7 +225,55 @@ void main() {
       expect(error, isNull);
       expect(service.profile?.name, 'Updated Name');
     });
-  });
+
+    test('propagates new alias to existing leaderboard entries', () async {
+      final profile = UserProfile(uid: '', alias: 'OldName');
+      await service.register('propagate@example.com', 'password123', profile);
+      final uid = service.currentUser!.uid;
+
+      // Pre-seed two leaderboard entries for this user
+      await db.collection('leaderboard').add({
+        'uid': uid, 'name': 'OldName', 'score': 100,
+        'lines': 5, 'level': 1, 'date': '2025-01-01', 'timestamp': 0,
+      });
+      await db.collection('leaderboard').add({
+        'uid': uid, 'name': 'OldName', 'score': 200,
+        'lines': 10, 'level': 2, 'date': '2025-01-02', 'timestamp': 1,
+      });
+
+      final error = await service.updateProfile(
+        UserProfile(uid: uid, alias: 'NewName'),
+      );
+
+      expect(error, isNull);
+
+      // All entries for this uid should have the updated name
+      final entries = await db
+          .collection('leaderboard')
+          .where('uid', isEqualTo: uid)
+          .get();
+      expect(entries.docs.every((d) => d.data()['name'] == 'NewName'), isTrue);
+    });
+
+    test('rejects update when target alias exists in anonymous leaderboard entry', () async {
+      // An anonymous score uses the name we want
+      await db.collection('leaderboard').add({
+        'name': 'AnonScore', 'score': 500, 'lines': 10, 'level': 2,
+        'date': '2025-01-01', 'timestamp': 0, 'uid': '',
+      });
+
+      final profile = UserProfile(uid: '', alias: 'MyAlias');
+      await service.register('clash@example.com', 'password123', profile);
+      final uid = service.currentUser!.uid;
+
+      final error = await service.updateProfile(
+        UserProfile(uid: uid, alias: 'AnonScore'),
+      );
+
+      expect(error, contains('already taken'));
+      expect(service.profile?.alias, 'MyAlias');
+    });
+  }); // end updateProfile group
 
   // deleteAccount() first anonymizes leaderboard entries (clears uid) so scores
   // remain on the board but are no longer linked to any account (GDPR Art. 17),
