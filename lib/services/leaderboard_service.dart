@@ -148,6 +148,10 @@ class LeaderboardEntry {
     this.country = '',
   });
 
+  /// Returns the name to display publicly. Entries with an empty uid have
+  /// been anonymised (account deleted) and show a placeholder instead.
+  String get displayName => uid.isEmpty ? 'Erased alias' : name;
+
   factory LeaderboardEntry.fromMap(Map<String, dynamic> map) => LeaderboardEntry(
         uid: map['uid'] as String? ?? '',
         name: map['name'] as String? ?? 'Unknown',

@@ -453,7 +453,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                     ),
                     Expanded(
                       child: Text(
-                        isMe ? '${r.name} (you)' : r.name,
+                        isMe ? '${r.displayName} (you)' : r.displayName,
                         style: TextStyle(color: isMe ? const Color(0xFFFFD700) : Colors.white, fontSize: 13, fontWeight: isMe ? FontWeight.bold : FontWeight.normal),
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -480,7 +480,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                       child: Text('#${userRank.$1}', style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
                     ),
                     Expanded(
-                      child: Text('${userRank.$2.name} (you)', style: const TextStyle(color: Color(0xFFFFD700), fontSize: 13, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+                      child: Text('${userRank.$2.displayName} (you)', style: const TextStyle(color: Color(0xFFFFD700), fontSize: 13, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
                     ),
                     Text('${userRank.$2.score} pts', style: const TextStyle(color: Color(0xFFFFD700), fontSize: 13)),
                   ],
