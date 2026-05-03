@@ -44,3 +44,7 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 .venv/
+
+# Admin scripts — sensitive credentials, never commit
+scripts/serviceAccountKey.json
+scripts/node_modules/

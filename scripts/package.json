@@ -1,0 +1,8 @@
+{
+  "name": "beastblocks-scripts",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "firebase-admin": "^13.0.0"
+  }
+}
