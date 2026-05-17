@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../games/beastblocks/screens/game_screen.dart';
+import '../../games/yatzy/screens/yatzy_setup_screen.dart';
 
 class PortalScreen extends StatelessWidget {
   const PortalScreen({super.key});
@@ -39,6 +40,16 @@ class PortalScreen extends StatelessWidget {
                   MaterialPageRoute(builder: (_) => const GameScreen()),
                 ),
               ),
+              const SizedBox(height: 12),
+              _GameCard(
+                title: 'Yatzy',
+                description: '1–4 spelare. Kasta tärningar och fyll i poängblocket.',
+                icon: Icons.casino_rounded,
+                accentColor: const Color(0xFF1976D2),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const YatzySetupScreen()),
+                ),
+              ),
             ],
           ),
         ),
@@ -53,11 +64,15 @@ class _GameCard extends StatelessWidget {
     required this.description,
     required this.onTap,
     this.imagePath,
+    this.icon,
+    this.accentColor,
   });
 
   final String title;
   final String description;
   final String? imagePath;
+  final IconData? icon;
+  final Color? accentColor;
   final VoidCallback onTap;
 
   @override
@@ -76,7 +91,16 @@ class _GameCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
                 child: imagePath != null
                     ? Image.asset(imagePath!, width: 56, height: 56, fit: BoxFit.cover)
-                    : const SizedBox(width: 56, height: 56),
+                    : Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: accentColor ?? const Color(0xFF533483),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(icon ?? Icons.games_rounded,
+                            color: Colors.white, size: 30),
+                      ),
               ),
               const SizedBox(width: 16),
               Expanded(
