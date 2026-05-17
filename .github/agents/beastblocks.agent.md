@@ -128,3 +128,5 @@ All Play Store assets live in `assets/store/`:
 - DO NOT modify `firebase_options.dart` manually — it is auto-generated
 - DO NOT push directly to `main` without confirming with the user for major features
 - ALWAYS run `flutter test test/` after changing game logic or services
+- ALWAYS implement new features on a dedicated feature branch (`feature/<name>`), never directly on `main`
+- DO NOT merge or suggest merging to `main` until the user has explicitly confirmed the feature is stable and working as expected
