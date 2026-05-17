@@ -2,7 +2,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
-import '../game/engine.dart';
+import '../engine.dart';
 import '../models/cell.dart';
 
 class GameBoard extends StatelessWidget {

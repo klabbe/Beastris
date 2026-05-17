@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
-import 'package:beastblocks/models/game_history.dart';
-import 'package:beastblocks/models/user_profile.dart';
-import 'package:beastblocks/services/auth_service.dart';
-import 'package:beastblocks/services/leaderboard_service.dart';
+import 'package:beastblocks/games/beastblocks/models/game_history.dart';
+import 'package:beastblocks/shared/models/user_profile.dart';
+import 'package:beastblocks/shared/services/auth_service.dart';
+import 'package:beastblocks/games/beastblocks/services/leaderboard_service.dart';
 
 import 'helpers/test_bootstrap.dart';
 import 'helpers/test_helpers.dart';

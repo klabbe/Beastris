@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'firebase_options.dart';
-import 'screens/game_screen.dart';
+import 'games/beastblocks/screens/game_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

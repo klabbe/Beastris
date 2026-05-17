@@ -4,8 +4,8 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import '../models/cell.dart';
-import '../models/piece.dart';
+import 'models/cell.dart';
+import 'models/piece.dart';
 
 enum GameState { idle, playing, paused, gameOver }
 

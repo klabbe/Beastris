@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../game/engine.dart';
-import '../models/countries.dart';
+import '../engine.dart';
 import '../models/game_history.dart';
-import '../models/user_profile.dart';
-import '../services/auth_service.dart';
 import '../services/leaderboard_service.dart';
 import '../widgets/game_board.dart';
 import '../widgets/next_piece.dart';
 import '../widgets/score_panel.dart';
+import '../../../shared/models/countries.dart';
+import '../../../shared/models/user_profile.dart';
+import '../../../shared/services/auth_service.dart';
 import 'privacy_policy_screen.dart';
 
 enum _LeaderboardTab { allTime, thisWeek }
