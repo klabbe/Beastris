@@ -44,7 +44,7 @@ class _YatzySetupScreenState extends State<YatzySetupScreen> {
         centerTitle: true,
       ),
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -85,13 +85,14 @@ class _YatzySetupScreenState extends State<YatzySetupScreen> {
                       ),
                     ),
                   )),
-              const Spacer(),
+              const SizedBox(height: 32),
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: _startGame,
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF533483),
+                    foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
                   child: const Text('Starta spel',

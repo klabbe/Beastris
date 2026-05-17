@@ -101,34 +101,12 @@ class _YatzyGameScreenState extends State<YatzyGameScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _state.players.length > 1
-              ? '${player.name}s tur'
-              : 'Yatzy',
+          _state.players.length > 1 ? '${player.name}s tur' : 'Yatzy',
         ),
         centerTitle: true,
-        actions: [
-          if (_state.players.length > 1)
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: Center(
-                child: Text(
-                  '${player.scoreCard.total} p',
-                  style: const TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
-        ],
       ),
       body: Column(
         children: [
-          // Player tabs (multiplayer)
-          if (_state.players.length > 1)
-            _PlayerTabBar(
-              players: _state.players,
-              currentIndex: _state.currentPlayerIndex,
-            ),
-
           // Dice area
           Container(
             color: const Color(0xFF1a1a2e),
@@ -144,7 +122,7 @@ class _YatzyGameScreenState extends State<YatzyGameScreen> {
                       .map((e) => DieWidget(
                             die: e.value,
                             onTap: () => _toggleHold(e.key),
-                            enabled: canScore == false && _state.rollsLeft < 3,
+                            enabled: _state.rollsLeft > 0 && _state.rollsLeft < 3,
                           ))
                       .toList(),
                 ),
@@ -163,6 +141,7 @@ class _YatzyGameScreenState extends State<YatzyGameScreen> {
                           : 'Kasta om (${_state.rollsLeft} kvar)'),
                       style: FilledButton.styleFrom(
                         backgroundColor: const Color(0xFF533483),
+                        foregroundColor: Colors.white,
                       ),
                     ),
                   ],
@@ -181,11 +160,12 @@ class _YatzyGameScreenState extends State<YatzyGameScreen> {
             ),
           ),
 
-          // Score card
+          // Score card – multi-column
           Expanded(
             child: SingleChildScrollView(
               child: ScoreCardWidget(
-                scoreCard: player.scoreCard,
+                players: _state.players,
+                currentPlayerIndex: _state.currentPlayerIndex,
                 previews: previews,
                 onSelectCategory: _scoreCategory,
                 canScore: canScore,
@@ -193,69 +173,6 @@ class _YatzyGameScreenState extends State<YatzyGameScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _PlayerTabBar extends StatelessWidget {
-  const _PlayerTabBar({
-    required this.players,
-    required this.currentIndex,
-  });
-
-  final List<YatzyPlayer> players;
-  final int currentIndex;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: const Color(0xFF0f0f1e),
-      child: Row(
-        children: players.asMap().entries.map((e) {
-          final isActive = e.key == currentIndex;
-          return Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: isActive
-                        ? const Color(0xFF8B5CF6)
-                        : Colors.transparent,
-                    width: 2,
-                  ),
-                ),
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    e.value.name,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: isActive
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                      color: isActive
-                          ? Colors.white
-                          : Colors.white.withAlpha(120),
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    '${e.value.scoreCard.total}',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: isActive
-                          ? const Color(0xFFD1B3FF)
-                          : Colors.white.withAlpha(80),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }).toList(),
       ),
     );
   }

@@ -1,7 +1,7 @@
 import 'dart:math';
 
-import 'die.dart';
-import 'score_card.dart';
+import 'models/die.dart';
+import 'models/score_card.dart';
 
 enum GameMode { singlePlayer, passAndPlay, online }
 
