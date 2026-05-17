@@ -34,8 +34,7 @@ class PortalScreen extends StatelessWidget {
               _GameCard(
                 title: 'BeastBlocks',
                 description: 'Klassiskt blockspel med highscore och leaderboard.',
-                icon: Icons.view_compact_alt_rounded,
-                accentColor: const Color(0xFF533483),
+                imagePath: 'assets/icon/app_icon.png',
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const GameScreen()),
                 ),
@@ -52,15 +51,13 @@ class _GameCard extends StatelessWidget {
   const _GameCard({
     required this.title,
     required this.description,
-    required this.icon,
-    required this.accentColor,
     required this.onTap,
+    this.imagePath,
   });
 
   final String title;
   final String description;
-  final IconData icon;
-  final Color accentColor;
+  final String? imagePath;
   final VoidCallback onTap;
 
   @override
@@ -75,14 +72,11 @@ class _GameCard extends StatelessWidget {
           padding: const EdgeInsets.all(20),
           child: Row(
             children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: accentColor,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: Colors.white, size: 30),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: imagePath != null
+                    ? Image.asset(imagePath!, width: 56, height: 56, fit: BoxFit.cover)
+                    : const SizedBox(width: 56, height: 56),
               ),
               const SizedBox(width: 16),
               Expanded(
