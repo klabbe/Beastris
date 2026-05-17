@@ -121,6 +121,12 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
   Future<void> _loadLeaderboards() async {
     final uid = _auth.currentUser?.uid;
+    final alias = _auth.profile?.alias;
+    // Self-heal any stale alias in leaderboard entries before fetching,
+    // so the displayed names are always up to date.
+    if (uid != null && alias != null) {
+      await _leaderboard.syncAlias(uid, alias);
+    }
     try {
       final data = await _leaderboard.fetchAllTimeData(uid: uid);
       if (mounted) setState(() {

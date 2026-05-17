@@ -114,6 +114,30 @@ class LeaderboardService {
     }
   }
 
+  /// Ensures all leaderboard entries for [uid] display [alias].
+  /// Called on leaderboard load to self-heal any stale names — e.g. if a
+  /// previous alias-change failed mid-way, or entries predate name-propagation.
+  Future<void> syncAlias(String uid, String alias) async {
+    try {
+      final snapshot = await _db
+          .collection(_collection)
+          .where('uid', isEqualTo: uid)
+          .get();
+      final stale = snapshot.docs
+          .where((d) => (d.data()['name'] as String? ?? '') != alias)
+          .toList();
+      if (stale.isEmpty) return;
+      final batch = _db.batch();
+      for (final doc in stale) {
+        batch.update(doc.reference, {'name': alias});
+      }
+      await batch.commit();
+      debugPrint('Leaderboard: synced alias → $alias for ${stale.length} stale entry(ies)');
+    } catch (e) {
+      debugPrint('Leaderboard: syncAlias error: $e');
+    }
+  }
+
   /// Keep only the best (first) entry per uid. Entries with empty uid are always kept.
   static List<LeaderboardEntry> _deduplicateByUid(List<LeaderboardEntry> sorted) {
     final seen = <String>{};

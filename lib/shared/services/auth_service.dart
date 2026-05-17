@@ -198,8 +198,10 @@ class AuthService extends ChangeNotifier {
             await _isAliasAvailable(profile.alias, excludeUid: profile.uid);
         if (!available) return 'That alias is already taken. Please choose another.';
       }
-      await _saveProfile(profile);
-      // Propagate new alias to all leaderboard entries for this user
+        // Propagate new alias to all leaderboard entries BEFORE saving the
+      // profile, so that if the batch fails the profile is not left in a
+      // state where the two are permanently out of sync (on next load
+      // aliasChanged would be false and propagation would be skipped forever).
       if (aliasChanged) {
         final entries = await _db
             .collection('leaderboard')
@@ -213,6 +215,7 @@ class AuthService extends ChangeNotifier {
           await batch.commit();
         }
       }
+      await _saveProfile(profile);
       _profile = profile;
       notifyListeners();
       return null;
