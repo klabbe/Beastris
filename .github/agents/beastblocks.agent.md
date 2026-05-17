@@ -130,3 +130,4 @@ All Play Store assets live in `assets/store/`:
 - ALWAYS run `flutter test test/` after changing game logic or services
 - ALWAYS implement new features on a dedicated feature branch (`feature/<name>`), never directly on `main`
 - DO NOT merge or suggest merging to `main` until the user has explicitly confirmed the feature is stable and working as expected
+- NEVER delete anything from git history — no `git rm`, `git reset --hard`, force-pushes that drop commits, or rebase that removes commits. If the user asks for this, explain the steps clearly but refuse to execute them yourself
