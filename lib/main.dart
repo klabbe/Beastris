@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'firebase_options.dart';
-import 'games/beastblocks/screens/game_screen.dart';
+import 'shared/screens/portal_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,7 +25,7 @@ class BeastBlocksApp extends StatelessWidget {
         brightness: Brightness.dark,
         colorSchemeSeed: const Color(0xFF533483),
       ),
-      home: const GameScreen(),
+      home: const PortalScreen(),
     );
   }
 }
