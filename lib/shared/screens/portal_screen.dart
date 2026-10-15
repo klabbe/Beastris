@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../games/beastblocks/screens/game_screen.dart';
+import '../../games/scanner/screens/scanner_screen.dart';
 import '../../games/yatzy/screens/yatzy_setup_screen.dart';
 
 class PortalScreen extends StatelessWidget {
@@ -48,6 +49,16 @@ class PortalScreen extends StatelessWidget {
                 accentColor: const Color(0xFF1976D2),
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const YatzySetupScreen()),
+                ),
+              ),
+              const SizedBox(height: 12),
+              _GameCard(
+                title: 'Skanner',
+                description: 'Skanna dokument med kameran och spara som PDF.',
+                icon: Icons.document_scanner_rounded,
+                accentColor: const Color(0xFF2E7D32),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ScannerScreen()),
                 ),
               ),
             ],
