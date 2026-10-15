@@ -91,6 +91,27 @@ class _YatzyGameScreenState extends State<YatzyGameScreen> {
     );
   }
 
+  Future<void> _confirmLeave() async {
+    final leave = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Lämna spelet?'),
+        content: const Text('Pågående spel går förlorat om du lämnar.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Stanna'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Lämna'),
+          ),
+        ],
+      ),
+    );
+    if (leave == true && mounted) Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
     final player = _state.currentPlayer;
@@ -98,6 +119,20 @@ class _YatzyGameScreenState extends State<YatzyGameScreen> {
         _state.rollsLeft < 3 ? _engine.previews(_state) : <ScoreCategory, int>{};
     final canScore = _state.rollsLeft < 3;
 
+    return PopScope(
+      canPop: _state.isGameOver,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _confirmLeave();
+      },
+      child: _buildScaffold(player, previews, canScore),
+    );
+  }
+
+  Widget _buildScaffold(
+    YatzyPlayer player,
+    Map<ScoreCategory, int> previews,
+    bool canScore,
+  ) {
     return Scaffold(
       appBar: AppBar(
         title: Text(
