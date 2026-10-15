@@ -20,26 +20,37 @@ You are a specialist in the BeastBlocks Flutter game. You have deep knowledge of
 
 ```
 lib/
-├── main.dart                    # App entry, Firebase init, MaterialApp
-├── firebase_options.dart        # Auto-generated Firebase config
-├── game/
-│   └── engine.dart              # GameEngine (ChangeNotifier) — all game logic
-├── models/
-│   ├── cell.dart                # Cell(color, emoji)
-│   ├── piece.dart               # BeastPiece + BeastPieces (7 animal pieces)
-│   ├── game_history.dart        # Local history via shared_preferences
-│   ├── user_profile.dart        # UserProfile(uid, alias, name, country)
-│   └── countries.dart           # Country list + countryCodeToFlag()
-├── services/
-│   ├── auth_service.dart        # Firebase Auth wrapper (ChangeNotifier)
-│   └── leaderboard_service.dart # Firestore leaderboard + dedup by uid
-├── screens/
-│   └── game_screen.dart         # Main screen: game + leaderboard + dialogs
-└── widgets/
-    ├── game_board.dart           # Board via CustomPaint
-    ├── next_piece.dart           # Next piece preview
-    └── score_panel.dart          # Score/lines/level display
+├── main.dart                          # App entry, Firebase init, MaterialApp → PortalScreen
+├── firebase_options.dart              # Auto-generated Firebase config
+├── shared/                            # Cross-game shared code
+│   ├── screens/
+│   │   └── portal_screen.dart         # Game selection portal (entry point)
+│   ├── models/
+│   │   ├── user_profile.dart          # UserProfile(uid, alias, name, country)
+│   │   └── countries.dart             # Country list + countryCodeToFlag()
+│   └── services/
+│       └── auth_service.dart          # Firebase Auth wrapper (ChangeNotifier)
+└── games/
+    └── beastblocks/                   # BeastBlocks game module
+        ├── engine.dart                # GameEngine (ChangeNotifier) — all game logic
+        ├── models/
+        │   ├── cell.dart              # Cell(color, emoji)
+        │   ├── piece.dart             # BeastPiece + BeastPieces (7 animal pieces)
+        │   └── game_history.dart      # Local history via shared_preferences
+        ├── screens/
+        │   ├── game_screen.dart       # Main screen: game + leaderboard + dialogs
+        │   └── privacy_policy_screen.dart
+        ├── services/
+        │   └── leaderboard_service.dart  # Firestore leaderboard + dedup + syncAlias
+        └── widgets/
+            ├── game_board.dart        # Board via CustomPaint
+            ├── next_piece.dart        # Next piece preview
+            └── score_panel.dart       # Score/lines/level display
 ```
+
+**Assets:**
+- `assets/icon/app_icon.png` — app icon (declared in `pubspec.yaml`), used in portal card
+- `assets/store/` — Play Store graphics (512px icon, feature graphic, screenshots)
 
 ## Game Engine Facts
 
@@ -82,6 +93,7 @@ Rotation: 90° clockwise via `(r, c) → (c, -r)`, then normalized (min offset �
 - `GameScreen` listens to both with `addListener` + `setState`
 - No third-party state management (no Provider/Riverpod/Bloc)
 - `CustomPaint` for board and next-piece rendering
+- **Portal pattern**: `PortalScreen` is the app entry point. Each game is a self-contained module under `lib/games/<game>/`. New games are added as `_GameCard` entries in `portal_screen.dart` with an `imagePath` for the game's icon.
 
 ## Common Commands
 
@@ -113,6 +125,8 @@ All Play Store assets live in `assets/store/`:
 - `screenshot_*.jpg` — phone 1080×1920 (9:16)
 - `tablet7_*.jpg` — 7" tablet 1080×1920
 - `tablet10_*.jpg` — 10" tablet 1440×2560
+
+The app icon (`assets/icon/app_icon.png`) is also used directly in the portal card via `Image.asset`.
 
 ## Conventions
 
