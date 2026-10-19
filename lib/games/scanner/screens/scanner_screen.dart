@@ -19,18 +19,81 @@ class ScannerScreen extends StatefulWidget {
 
 class _ScannerScreenState extends State<ScannerScreen> {
   final List<String> _pages = [];
+  bool _busy = false;
+
+  String get _fileName => 'scan_${DateTime.now().millisecondsSinceEpoch}.pdf';
 
   // Native scanner handles edge detection, cropping and multi-page capture.
-  Future<void> _scan() async {
+  Future<List<String>> _capturePages() async {
     try {
       final paths = await CunningDocumentScanner.getPictures(
         noOfPages: 20,
         scannerSource: ScannerSource.cameraAndGallery,
       );
-      if (paths != null && mounted) setState(() => _pages.addAll(paths));
+      return paths ?? [];
     } catch (e) {
       _snack('Kunde inte starta skannern: $e');
+      return [];
     }
+  }
+
+  Future<void> _scan() async {
+    final paths = await _capturePages();
+    if (paths.isNotEmpty && mounted) setState(() => _pages.addAll(paths));
+  }
+
+  Future<Uint8List> _buildPdf() async {
+    final doc = pw.Document();
+    for (final path in _pages) {
+      final image = pw.MemoryImage(await File(path).readAsBytes());
+      doc.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          margin: pw.EdgeInsets.zero,
+          build: (_) =>
+              pw.Center(child: pw.Image(image, fit: pw.BoxFit.contain)),
+        ),
+      );
+    }
+    return doc.save();
+  }
+
+  Future<void> _run(Future<void> Function() action, String errorMsg) async {
+    if (_busy || _pages.isEmpty) return;
+    setState(() => _busy = true);
+    try {
+      await action();
+    } catch (e) {
+      _snack('$errorMsg: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _share() => _run(() async {
+    final bytes = await _buildPdf();
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/$_fileName');
+    await file.writeAsBytes(bytes);
+    await SharePlus.instance.share(
+      ShareParams(files: [XFile(file.path, mimeType: 'application/pdf')]),
+    );
+  }, 'Kunde inte dela PDF');
+
+  Future<void> _download() => _run(() async {
+    final uri = await FilePicker.saveFile(
+      fileName: _fileName,
+      bytes: await _buildPdf(),
+      mimeType: 'application/pdf',
+      dialogTitle: 'Spara PDF',
+    );
+    if (uri != null) _snack('PDF sparad');
+  }, 'Kunde inte spara PDF');
+
+  void _remove(int index) => setState(() => _pages.removeAt(index));
+
+  void _reorder(int oldIndex, int newIndex) {
+    setState(() => _pages.insert(newIndex, _pages.removeAt(oldIndex)));
   }
 
   void _snack(String msg) {
@@ -80,20 +143,6 @@ class _ScannerScreenState extends State<ScannerScreen> {
     if (leave == true && mounted) Navigator.of(context).pop();
   }
 
-  void _remove(int index) => setState(() => _pages.removeAt(index));
-
-  void _reorder(int oldIndex, int newIndex) {
-    setState(() => _pages.insert(newIndex, _pages.removeAt(oldIndex)));
-  }
-
-  // The export screen shares the list, so reordering there carries back here.
-  Future<void> _next() async {
-    await Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => _ExportScreen(pages: _pages)));
-    if (mounted) setState(() {});
-  }
-
   @override
   Widget build(BuildContext context) {
     final hasPages = _pages.isNotEmpty;
@@ -105,56 +154,85 @@ class _ScannerScreenState extends State<ScannerScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: Text(
-            hasPages ? 'Skanner (${_pages.length} sidor)' : 'Skanner',
+            hasPages ? 'Dokument (${_pages.length} sidor)' : 'Dokumentskanner',
           ),
-        ),
-        body: !hasPages
-            ? const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(32),
-                  child: Text(
-                    'Tryck på kameran för att skanna. Dokumentets kanter hittas automatiskt och du kan lägga till flera sidor.',
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              )
-            : _PageGrid(
-                pages: _pages,
-                bottomPadding: 100,
-                onReorder: _reorder,
-                onTap: (i) => _openViewer(context, _pages, i),
-                onRemove: _remove,
+          actions: [
+            if (hasPages)
+              IconButton(
+                tooltip: 'Släng alla sidor',
+                onPressed: _discard,
+                icon: const Icon(Icons.delete_outline_rounded),
               ),
-        bottomNavigationBar: hasPages
-            ? SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _discard,
-                          icon: const Icon(Icons.delete_outline_rounded),
-                          label: const Text('Släng'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: _next,
-                          icon: const Icon(Icons.arrow_forward_rounded),
-                          label: const Text('Nästa'),
-                        ),
-                      ),
-                    ],
+          ],
+        ),
+        body: Column(
+          children: [
+            if (hasPages)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Dra för att ordna · tryck på × för att ta bort · tryck på en sida för att förstora',
+                    style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ),
-              )
-            : null,
-        floatingActionButton: FloatingActionButton.extended(
-          onPressed: _scan,
-          icon: const Icon(Icons.document_scanner_rounded),
-          label: Text(hasPages ? 'Lägg till sidor' : 'Skanna'),
+              ),
+            Expanded(
+              child: hasPages
+                  ? _PageGrid(
+                      pages: _pages,
+                      onReorder: _reorder,
+                      onTap: (i) => _openViewer(context, _pages, i),
+                      onRemove: _remove,
+                    )
+                  : const _EmptyScanState(),
+            ),
+          ],
+        ),
+        bottomNavigationBar: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: hasPages && !_busy ? _share : null,
+                    icon: _busy
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.share_rounded),
+                    label: Text(_busy ? 'Skapar PDF…' : 'Dela PDF'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _scan,
+                        icon: const Icon(Icons.document_scanner_rounded),
+                        label: const Text('Lägg till sidor'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: hasPages && !_busy ? _download : null,
+                        icon: const Icon(Icons.download_rounded),
+                        label: const Text('Spara PDF'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -169,130 +247,38 @@ void _openViewer(BuildContext context, List<String> pages, int index) {
   );
 }
 
-class _ExportScreen extends StatefulWidget {
-  const _ExportScreen({required this.pages});
-
-  final List<String> pages;
-
-  @override
-  State<_ExportScreen> createState() => _ExportScreenState();
-}
-
-class _ExportScreenState extends State<_ExportScreen> {
-  bool _busy = false;
-
-  String get _fileName => 'scan_${DateTime.now().millisecondsSinceEpoch}.pdf';
-
-  Future<Uint8List> _buildPdf() async {
-    final doc = pw.Document();
-    for (final path in widget.pages) {
-      final image = pw.MemoryImage(await File(path).readAsBytes());
-      doc.addPage(
-        pw.Page(
-          pageFormat: PdfPageFormat.a4,
-          margin: pw.EdgeInsets.zero,
-          build: (_) =>
-              pw.Center(child: pw.Image(image, fit: pw.BoxFit.contain)),
-        ),
-      );
-    }
-    return doc.save();
-  }
-
-  Future<void> _run(Future<void> Function() action, String errorMsg) async {
-    if (_busy) return;
-    setState(() => _busy = true);
-    try {
-      await action();
-    } catch (e) {
-      _snack('$errorMsg: $e');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _share() => _run(() async {
-    final bytes = await _buildPdf();
-    final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/$_fileName');
-    await file.writeAsBytes(bytes);
-    await SharePlus.instance.share(
-      ShareParams(files: [XFile(file.path, mimeType: 'application/pdf')]),
-    );
-  }, 'Kunde inte dela PDF');
-
-  Future<void> _download() => _run(() async {
-    final uri = await FilePicker.saveFile(
-      fileName: _fileName,
-      bytes: await _buildPdf(),
-      mimeType: 'application/pdf',
-      dialogTitle: 'Spara PDF',
-    );
-    if (uri != null) _snack('PDF sparad');
-  }, 'Kunde inte spara PDF');
-
-  void _snack(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-  }
+class _EmptyScanState extends StatelessWidget {
+  const _EmptyScanState();
 
   @override
   Widget build(BuildContext context) {
-    final pages = widget.pages;
-    return Scaffold(
-      appBar: AppBar(title: Text('Klart (${pages.length} sidor)')),
-      body: Column(
-        children: [
-          const Padding(
-            padding: EdgeInsets.only(top: 12),
-            child: Text('Håll in och dra en sida för att byta ordning'),
-          ),
-          Expanded(
-            child: _PageGrid(
-              pages: pages,
-              onReorder: (o, n) =>
-                  setState(() => pages.insert(n, pages.removeAt(o))),
-              onTap: (i) => _openViewer(context, pages, i),
+    final colors = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircleAvatar(
+              radius: 38,
+              backgroundColor: colors.primaryContainer,
+              child: Icon(
+                Icons.document_scanner_rounded,
+                size: 38,
+                color: colors.onPrimaryContainer,
+              ),
             ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _busy ? null : () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.arrow_back_rounded),
-                  label: const Text('Tillbaka'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _busy ? null : _download,
-                  icon: const Icon(Icons.download_rounded),
-                  label: const Text('Ladda ner'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: _busy ? null : _share,
-                  icon: _busy
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.share_rounded),
-                  label: const Text('Dela'),
-                ),
-              ),
-            ],
-          ),
+            const SizedBox(height: 16),
+            Text(
+              'Börja med att skanna',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Dokumentets kanter hittas automatiskt. Du kan lägga till fler sidor efteråt.',
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
       ),
     );
@@ -305,19 +291,17 @@ class _PageGrid extends StatelessWidget {
     required this.onReorder,
     required this.onTap,
     this.onRemove,
-    this.bottomPadding = 12,
   });
 
   final List<String> pages;
   final void Function(int oldIndex, int newIndex) onReorder;
   final void Function(int index) onTap;
   final void Function(int index)? onRemove;
-  final double bottomPadding;
 
   @override
   Widget build(BuildContext context) {
     return ReorderableGridView.builder(
-      padding: EdgeInsets.fromLTRB(12, 12, 12, bottomPadding),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         mainAxisSpacing: 12,
