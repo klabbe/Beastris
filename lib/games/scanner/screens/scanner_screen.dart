@@ -3,7 +3,10 @@ import 'dart:typed_data';
 
 import 'package:cunning_document_scanner/cunning_document_scanner.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
+import 'package:image/image.dart' as img;
+import 'package:image_cropper/image_cropper.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -70,15 +73,33 @@ class _ScannerScreenState extends State<ScannerScreen> {
     }
   }
 
-  Future<void> _share() => _run(() async {
-    final bytes = await _buildPdf();
-    final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/$_fileName');
-    await file.writeAsBytes(bytes);
-    await SharePlus.instance.share(
-      ShareParams(files: [XFile(file.path, mimeType: 'application/pdf')]),
+  Future<void> _share() async {
+    if (_busy || _pages.isEmpty) return;
+
+    final enteredName = await showDialog<String>(
+      context: context,
+      builder: (_) => _PdfNameDialog(
+        initialName: _fileName.replaceFirst(RegExp(r'\.pdf$'), ''),
+      ),
     );
-  }, 'Kunde inte dela PDF');
+    if (enteredName == null || !mounted) return;
+
+    final safeName = enteredName
+        .trim()
+        .replaceAll(RegExp(r'[\\/:*?"<>|\x00-\x1F]'), '_')
+        .replaceFirst(RegExp(r'\.pdf$', caseSensitive: false), '');
+    if (safeName.isEmpty) return;
+
+    await _run(() async {
+      final bytes = await _buildPdf();
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/$safeName.pdf');
+      await file.writeAsBytes(bytes);
+      await SharePlus.instance.share(
+        ShareParams(files: [XFile(file.path, mimeType: 'application/pdf')]),
+      );
+    }, 'Kunde inte dela PDF');
+  }
 
   Future<void> _download() => _run(() async {
     final uri = await FilePicker.saveFile(
@@ -173,7 +194,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'Dra för att ordna · tryck på × för att ta bort · tryck på en sida för att förstora',
+                    'Dra för att ordna · tryck på sidan för att granska eller redigera',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ),
@@ -183,7 +204,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
                   ? _PageGrid(
                       pages: _pages,
                       onReorder: _reorder,
-                      onTap: (i) => _openViewer(context, _pages, i),
+                      onTap: _editPage,
                       onRemove: _remove,
                     )
                   : const _EmptyScanState(),
@@ -237,14 +258,291 @@ class _ScannerScreenState extends State<ScannerScreen> {
       ),
     );
   }
+
+  Future<void> _editPage(int index) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _PageEditorScreen(pages: _pages, initialIndex: index),
+      ),
+    );
+    if (mounted) setState(() {});
+  }
 }
 
-void _openViewer(BuildContext context, List<String> pages, int index) {
-  Navigator.of(context).push(
-    MaterialPageRoute(
-      builder: (_) => _PageViewer(pages: List.of(pages), initialIndex: index),
-    ),
+class _PdfNameDialog extends StatefulWidget {
+  const _PdfNameDialog({required this.initialName});
+
+  final String initialName;
+
+  @override
+  State<_PdfNameDialog> createState() => _PdfNameDialogState();
+}
+
+class _PdfNameDialogState extends State<_PdfNameDialog> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initialName,
   );
+  bool _showNameError = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (_controller.text.trim().isEmpty) {
+      setState(() => _showNameError = true);
+      return;
+    }
+    Navigator.pop(context, _controller.text);
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Namn på PDF'),
+    content: TextField(
+      controller: _controller,
+      autofocus: true,
+      decoration: InputDecoration(
+        labelText: 'Filnamn',
+        suffixText: '.pdf',
+        errorText: _showNameError ? 'Ange ett filnamn' : null,
+      ),
+      textInputAction: TextInputAction.done,
+      onChanged: (_) {
+        if (_showNameError) setState(() => _showNameError = false);
+      },
+      onSubmitted: (_) => _submit(),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Avbryt'),
+      ),
+      FilledButton(onPressed: _submit, child: const Text('Dela')),
+    ],
+  );
+}
+
+class _PageEditorScreen extends StatefulWidget {
+  const _PageEditorScreen({required this.pages, required this.initialIndex});
+
+  final List<String> pages;
+  final int initialIndex;
+
+  @override
+  State<_PageEditorScreen> createState() => _PageEditorScreenState();
+}
+
+class _PageEditorScreenState extends State<_PageEditorScreen> {
+  late int _index = widget.initialIndex;
+  bool _busy = false;
+
+  Future<void> _crop() async {
+    final colorScheme = Theme.of(context).colorScheme;
+    final cropped = await ImageCropper().cropImage(
+      sourcePath: widget.pages[_index],
+      compressFormat: ImageCompressFormat.jpg,
+      compressQuality: 92,
+      uiSettings: [
+        AndroidUiSettings(
+          toolbarTitle: 'Beskär sida ${_index + 1}',
+          toolbarColor: colorScheme.surface,
+          toolbarWidgetColor: colorScheme.onSurface,
+          activeControlsWidgetColor: colorScheme.primary,
+          initAspectRatio: CropAspectRatioPreset.original,
+          lockAspectRatio: false,
+          aspectRatioPresets: const [
+            CropAspectRatioPreset.original,
+            CropAspectRatioPreset.ratio4x3,
+            CropAspectRatioPreset.ratio16x9,
+            CropAspectRatioPreset.square,
+          ],
+        ),
+        IOSUiSettings(
+          title: 'Beskär sida ${_index + 1}',
+          aspectRatioPresets: const [
+            CropAspectRatioPreset.original,
+            CropAspectRatioPreset.ratio4x3,
+            CropAspectRatioPreset.ratio16x9,
+            CropAspectRatioPreset.square,
+          ],
+        ),
+        WebUiSettings(context: context),
+      ],
+    );
+    if (cropped == null || !mounted) return;
+    setState(() => widget.pages[_index] = cropped.path);
+  }
+
+  Future<void> _transform(Uint8List Function(Uint8List) transform) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final input = await File(widget.pages[_index]).readAsBytes();
+      final outputBytes = await compute(transform, input);
+      final dir = await getTemporaryDirectory();
+      final output = File(
+        '${dir.path}/edited_${DateTime.now().microsecondsSinceEpoch}.jpg',
+      );
+      await output.writeAsBytes(outputBytes);
+      if (mounted) setState(() => widget.pages[_index] = output.path);
+    } catch (e) {
+      _snack('Kunde inte redigera sidan: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _enhance() => _transform(_enhanceImageBytes);
+
+  Future<void> _rotate() => _transform(_rotateImageBytes);
+
+  void _snack(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pages = widget.pages;
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Redigera sida ${_index + 1} av ${pages.length}'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Klar'),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: InteractiveViewer(
+              maxScale: 4,
+              child: Center(
+                child: Image.file(File(pages[_index]), fit: BoxFit.contain),
+              ),
+            ),
+          ),
+          if (_busy) const LinearProgressIndicator(),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: _busy ? null : _crop,
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                          ),
+                          child: const SizedBox(
+                            height: 56,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.crop_rounded, size: 20),
+                                SizedBox(height: 4),
+                                Text('Beskär', maxLines: 1, softWrap: false),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: _busy ? null : _enhance,
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                          ),
+                          child: const SizedBox(
+                            height: 56,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.auto_fix_high_rounded, size: 20),
+                                SizedBox(height: 4),
+                                Text('Förbättra', maxLines: 1, softWrap: false),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: _busy ? null : _rotate,
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                          ),
+                          child: const SizedBox(
+                            height: 56,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.rotate_right_rounded, size: 20),
+                                SizedBox(height: 4),
+                                Text('Rotera', maxLines: 1, softWrap: false),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      TextButton.icon(
+                        onPressed: _index > 0
+                            ? () => setState(() => _index--)
+                            : null,
+                        icon: const Icon(Icons.chevron_left_rounded),
+                        label: const Text('Föregående'),
+                      ),
+                      Text('${_index + 1} / ${pages.length}'),
+                      TextButton.icon(
+                        onPressed: _index < pages.length - 1
+                            ? () => setState(() => _index++)
+                            : null,
+                        icon: const Icon(Icons.chevron_right_rounded),
+                        label: const Text('Nästa'),
+                        iconAlignment: IconAlignment.end,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+Uint8List _enhanceImageBytes(Uint8List source) {
+  final decoded = img.decodeImage(source);
+  if (decoded == null) throw const FormatException('Ogiltig bildfil');
+  final enhanced = img.grayscale(decoded);
+  img.normalize(enhanced, min: 0, max: 255);
+  return img.encodeJpg(enhanced, quality: 92);
+}
+
+Uint8List _rotateImageBytes(Uint8List source) {
+  final decoded = img.decodeImage(source);
+  if (decoded == null) throw const FormatException('Ogiltig bildfil');
+  return img.encodeJpg(img.copyRotate(decoded, angle: 90), quality: 92);
 }
 
 class _EmptyScanState extends StatelessWidget {
@@ -344,47 +642,6 @@ class _PageGrid extends StatelessWidget {
                 ),
               ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PageViewer extends StatefulWidget {
-  const _PageViewer({required this.pages, required this.initialIndex});
-
-  final List<String> pages;
-  final int initialIndex;
-
-  @override
-  State<_PageViewer> createState() => _PageViewerState();
-}
-
-class _PageViewerState extends State<_PageViewer> {
-  late final PageController _controller = PageController(
-    initialPage: widget.initialIndex,
-  );
-  late int _index = widget.initialIndex;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Sida ${_index + 1} av ${widget.pages.length}'),
-      ),
-      body: PageView.builder(
-        controller: _controller,
-        itemCount: widget.pages.length,
-        onPageChanged: (i) => setState(() => _index = i),
-        itemBuilder: (_, i) => InteractiveViewer(
-          maxScale: 5,
-          child: Center(child: Image.file(File(widget.pages[i]))),
         ),
       ),
     );
